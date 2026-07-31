@@ -126,6 +126,7 @@ graph TB
 | Cash Remittance | `CashRemittanceResource` (verify action) | `POST /api/v1/finance/remit` | `RemittanceService::submit()`, `RemittanceService::verify()` |
 | Dashboard | Filament Widgets (`InventoryHealthWidget`, `CashPositionWidget`, `SalesTrendWidget`) scoped by role | `GET /api/v1/dashboard/summary` | `DashboardService::summarize()` |
 | Financial Reports (Chart of Accounts) | `FinancialReports` page (Admin/Manager only) — trial balance + period P&L | — | `LedgerReportService::trialBalance()`, `LedgerReportService::profitAndLoss()` |
+| Purchasing (Supplier + PO) | `SupplierResource`, `PurchaseOrderResource` (+ custom "Receive"/"Record Payment"/"Cancel" actions) | — | `PurchaseOrderService::create()`, `PurchaseOrderService::receive()`, `PurchaseOrderService::recordPayment()`, `PurchaseOrderService::cancel()` |
 | Auth | Filament login (session) | `POST /api/v1/auth/login` (Sanctum token issuance) | — |
 
 #### Roles & Permission Matrix
@@ -143,6 +144,8 @@ graph TB
 | Global dashboard (all branches) | ✅ | ✅ | ❌ | ❌ |
 | Single-branch dashboard | ✅ | ✅ | ✅ (own branch only) | ❌ |
 | User & role management | ✅ | ❌ | ❌ | ❌ |
+| Financial Reports (Trial Balance / P&L) | ✅ | ✅ | ❌ | ❌ |
+| Supplier & Purchase Order management | ✅ | ✅ | ❌ | ❌ |
 
 Implemented via Filament Shield policies + a `branch_id` scope on Supervisor/Staff queries (global scope applied when `role != ADMIN/MANAGER`).
 
@@ -479,6 +482,37 @@ erDiagram
         timestamp created_at
     }
 
+    SUPPLIERS {
+        uuid id PK "RFC addition (Phase 3 Purchasing follow-up)"
+        string name
+        string contact_person
+        string phone
+        string email
+        text address
+        boolean is_active
+        timestamp created_at
+    }
+
+    PURCHASE_ORDERS {
+        uuid id PK "RFC addition (Phase 3 Purchasing follow-up)"
+        uuid supplier_id FK
+        uuid warehouse_id FK "destination — Central per Story 1 convention"
+        uuid created_by FK
+        enum status "ORDERED, PARTIALLY_RECEIVED, RECEIVED, CANCELLED"
+        decimal subtotal "12,2 - full ordered value"
+        decimal total "12,2"
+        decimal received_total "12,2 - value of goods actually received so far"
+        decimal amount_paid "12,2"
+        decimal balance_due "12,2 - received_total - amount_paid"
+        json items "[{product_id, quantity_ordered, unit_cost, quantity_received}] - same JSON-blob convention as orders.items, not a normalized line-items table"
+        timestamp ordered_at
+        timestamp received_at "nullable"
+        timestamp created_at
+    }
+
+    SUPPLIERS ||--o{ PURCHASE_ORDERS : "supplies"
+    WAREHOUSES ||--o{ PURCHASE_ORDERS : "destination"
+
     CASH_REMITTANCES {
         uuid id PK "RFC addition table, fields per PRD Story 5"
         uuid branch_id FK
@@ -514,6 +548,8 @@ Every `cash_transactions` row records exactly one balanced movement: `from_accou
 | Expense (Story 4) | the chosen `source_cash_id` account | `FUND_POOL` account matching `target_pool` | Source cash decreases; pool's balance becomes a **running total of cumulative spend in that category** (not spendable cash) — feeds the "expense analytics charts" the PRD asks for. |
 | Remit submit (Story 5) | `BRANCH_DRAWER` | `IN_TRANSIT` | Branch liability moves to a clearing account while pending verification. |
 | Remit verify (Story 5) | `IN_TRANSIT` | `CENTRAL_TREASURY` | Confirmed cash lands in treasury. |
+| PO receive (Phase 3 Purchasing) | `ACCOUNTS_PAYABLE` | `INVENTORY_ASSET` | Goods received on credit; liability grows (see Chart of Accounts subsection below on why this is the correct from/to direction for a liability in this schema). |
+| PO payment (Phase 3 Purchasing) | chosen cash account | `ACCOUNTS_PAYABLE` | Cash decreases, liability shrinks. |
 
 **Why not a full `journal_entries` / `journal_lines` pair (traditional multi-line double-entry)?** Every event in this PRD is a simple two-party movement — nothing requires splitting one transaction across more than two accounts. A single table with `from_account_id`/`to_account_id`/`amount` gives the guarantee that matters most for reporting — every account's balance is fully derivable from the transaction log, and the sum entering an account always equals the sum leaving its counterparties — without the schema/query overhead of a header+lines model. If a future requirement needs one event to fan out across 3+ accounts, that's the trigger to migrate to `journal_entries`/`journal_lines`; nothing in the current PRD requires it. A trial balance report is just `SUM(amount) GROUP BY to_account_id` minus `SUM(amount) GROUP BY from_account_id`.
 
@@ -526,6 +562,16 @@ Two account types were fixed/added on top of the original seed data:
 - **`INVENTORY_ASSET` (asset) and `COGS_EXPENSE` (expense) added.** `InventoryService::receiveStock()` gained an *optional* `$fundingSource` parameter — when given (and `products.cost_price` is positive), it posts `from:$fundingSource -> to:INVENTORY_ASSET`. Every existing call site keeps working unchanged since it's opt-in (donated stock has no cost/funding source to post). `CheckoutService::process()` now unconditionally posts `from:INVENTORY_ASSET -> to:COGS_EXPENSE` for `cogs_total > 0` (Phase 1's per-line `unit_cost` snapshot), recognizing the expense against whatever inventory value was built up at receipt. **Known limitation:** if stock was received without a funding source but later sold with a nonzero `cost_price`, `INVENTORY_ASSET` goes negative — same "allow it, don't block the sale" tolerance this system already applies to negative stock quantity, not a bug.
 
 `LedgerReportService::profitAndLoss($periodStart, $periodEnd, ?$warehouseId)` is period-scoped (unlike `.balance`, which is all-time) — it reads `SUM(debit)` on revenue-type accounts and `SUM(credit)` on expense-type accounts (including `COGS_EXPENSE`) from the `ledgers` log directly, per the from/to direction each event actually posts in.
+
+#### Purchasing / Accounts Payable (2026-08-01, ERP-gap follow-up, Phase 3 of 4)
+
+`ACCOUNTS_PAYABLE` (liability) is modeled the same way `SALES_REVENUE` already was: a "source" account whose balance goes more negative as an obligation grows (`PurchaseOrderService::receive()` posts `from:ACCOUNTS_PAYABLE -> to:INVENTORY_ASSET`) and back toward zero as it's settled (`recordPayment()` posts `from:<cash account> -> to:ACCOUNTS_PAYABLE`). This is *not* GAAP credit-increases-a-liability — it's this schema's existing "loses/gains" bookkeeping direction (see Ledger Mechanics above), applied consistently to the one liability account that now exists.
+
+**Don't read `CashAccount::where('code','ACCOUNTS_PAYABLE')->value('balance')` for "how much do we owe."** Same reasoning as `SALES_REVENUE`: that balance is a ledger-consistency bookkeeping artifact, not a reporting-ready number. The actual "amount owed" is `SUM(purchase_orders.balance_due)` (per-PO, always a plain positive number, computed directly by `PurchaseOrderService`) — read that instead, the same way `DashboardService` computes `total_sales_gross` from `orders.subtotal` rather than `SALES_REVENUE.balance`.
+
+Liability accrues against goods **received**, not the full ordered quantity — ordering 100 units doesn't create a debt until some of them physically arrive (`received_total` accrues per `receive()` call; `balance_due = received_total - amount_paid`). `receive()` also writes the PO line's negotiated `unit_cost` onto `Product.cost_price` ("last cost" costing — the simplest costing method that keeps Phase 1/2's COGS math using a real, current cost) before calling `InventoryService::receiveStock(..., fundingSource: 'ACCOUNTS_PAYABLE')`, reusing that method's existing ledger-posting logic rather than duplicating it.
+
+**Out of scope for this phase:** partial cancellation of a PO after some lines have been received (only an untouched `ordered` PO can be cancelled); per-supplier AP aging/sub-ledger (one flat `ACCOUNTS_PAYABLE` account, matching this codebase's existing "one account per concern" style rather than per-supplier rows); return-to-supplier / debit memos (Phase 4 is Returns, but scoped to customer returns per the original gap analysis — supplier returns would be a further follow-up if needed).
 
 ### APIs
 
@@ -660,6 +706,7 @@ Recommend a single-branch pilot running in parallel with the existing spreadshee
 | 2026-07-18 | Stakeholder (Product) | Resolved open item #6: single global `SALES_REVENUE` stays — per-branch revenue is derivable from `orders.warehouse_id`, no ledger split needed unless trial-balance-grade per-branch statements are ever required. Remaining open: #7 (logging guideline cross-check) and #8 (owner/approver metadata). |
 | 2026-07-31 | ERP-gap analysis follow-up (Phase 1 of 4: COGS -> COA -> Purchasing -> Returns) | Added `products.cost_price`, `orders.cogs_total`/`gross_profit` for margin/profit reporting — see Database Model notes above. `ErpDashboard`'s COGS/Gross Profit tiles are gated to Admin/Manager (see RBAC.md Dashboard Widget Visibility) since cost data is more sensitive than revenue. Phase 2 (real Chart of Accounts) will add `INVENTORY_ASSET`/`COGS_EXPENSE` ledger postings that this phase deliberately left as reporting-only. |
 | 2026-08-01 | ERP-gap analysis follow-up (Phase 2 of 4) | Landed the Chart of Accounts follow-up flagged above — see Database Model "Chart of Accounts" subsection. New `FinancialReports` page (Trial Balance + P&L), Admin/Manager only. Next: Phase 3 (Supplier + PO), Phase 4 (Returns). |
+| 2026-08-01 | ERP-gap analysis follow-up (Phase 3 of 4) | Added `Supplier` + `PurchaseOrder` (Admin/Manager only, `PurchaseOrderResource`) — see Database Model "Purchasing / Accounts Payable" subsection. New `ACCOUNTS_PAYABLE` liability account. Next: Phase 4 (Returns). |
 | | | |
 
 ---

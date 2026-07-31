@@ -34,12 +34,13 @@ Order::all(); // Returns only orders from their warehouse
 - `Expense`
 - `InventoryAudit`
 - `Ledger`
+- `PurchaseOrder`
 
 **`Remittance` is the exception** — its table has `from_warehouse_id`/`to_warehouse_id`, not a single `warehouse_id` column, so the generic scope's `where('warehouse_id', ...)` fatals for non-Admin users. Row visibility for Remittance is instead enforced by `RemittancePolicy` + `RemittanceResource::getEloquentQuery()` (filters `from_warehouse_id OR to_warehouse_id = user->warehouse_id`). Apply the same pattern to any future model that doesn't own a single `warehouse_id` (e.g. `InventoryTransfer`, gated by `InventoryTransferPolicy` the same way).
 
 ### 2. Policy-Based Authorization
 
-**Files**: `app/Policies/WarehouseScopePolicy.php` (warehouse-owned rows: Inventory, InventoryAudit, Expense) and `app/Policies/RoleGatedPolicy.php` (global master data: Product, Brand, Warehouse, Branch, Discount, CashAccount).
+**Files**: `app/Policies/WarehouseScopePolicy.php` (warehouse-owned rows: Inventory, InventoryAudit, Expense, PurchaseOrder) and `app/Policies/RoleGatedPolicy.php` (global master data: Product, Brand, Warehouse, Branch, Discount, CashAccount, Supplier).
 
 Both are traits that expose `viewRoles()`/`manageRoles()` as **overridable static methods, not properties** — a trait property and a same-named property in the using class is a fatal PHP error the moment their default values differ, so role lists must be methods:
 

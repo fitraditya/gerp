@@ -6,7 +6,9 @@ use App\Models\Expense;
 use App\Models\InventoryAudit;
 use App\Models\InventoryTransfer;
 use App\Models\Product;
+use App\Models\PurchaseOrder;
 use App\Models\Remittance;
+use App\Models\Supplier;
 use App\Models\Warehouse;
 use App\Scopes\WarehouseScope;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -164,5 +166,36 @@ class PolicyMatrixTest extends TestCase
 
         $confinedManager = $this->makeUser('Manager', Warehouse::factory()->create()->id);
         $this->assertFalse($confinedManager->can('view', $transfer));
+    }
+
+    public function test_global_manager_can_view_purchase_order_in_any_warehouse(): void
+    {
+        $warehouse = Warehouse::factory()->create();
+        $po = PurchaseOrder::withoutGlobalScope(WarehouseScope::class)->create([
+            'po_number' => 'PO-TEST-1',
+            'supplier_id' => Supplier::factory()->create()->id,
+            'warehouse_id' => $warehouse->id,
+            'created_by' => $this->makeUser('Admin')->id,
+            'status' => 'ordered',
+            'items' => [],
+        ]);
+
+        $globalManager = $this->makeUser('Manager', null);
+        $this->assertTrue($globalManager->can('view', $po));
+
+        $confinedManager = $this->makeUser('Manager', Warehouse::factory()->create()->id);
+        $this->assertFalse($confinedManager->can('view', $po));
+    }
+
+    public function test_supervisor_and_staff_are_blocked_from_purchase_orders(): void
+    {
+        $warehouse = Warehouse::factory()->create();
+
+        $supervisor = $this->makeUser('Supervisor', $warehouse->id);
+        $staff = $this->makeUser('Staff', $warehouse->id);
+
+        $this->assertFalse($supervisor->can('create', PurchaseOrder::class));
+        $this->assertFalse($staff->can('create', PurchaseOrder::class));
+        $this->assertFalse($supervisor->can('viewAny', PurchaseOrder::class));
     }
 }

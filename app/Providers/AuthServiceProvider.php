@@ -12,7 +12,9 @@ use App\Models\InventoryAudit;
 use App\Models\InventoryTransfer;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\PurchaseOrder;
 use App\Models\Remittance;
+use App\Models\Supplier;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Policies\BranchPolicy;
@@ -25,7 +27,9 @@ use App\Policies\InventoryPolicy;
 use App\Policies\InventoryTransferPolicy;
 use App\Policies\OrderPolicy;
 use App\Policies\ProductPolicy;
+use App\Policies\PurchaseOrderPolicy;
 use App\Policies\RemittancePolicy;
+use App\Policies\SupplierPolicy;
 use App\Policies\UserPolicy;
 use App\Policies\WarehousePolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
@@ -51,6 +55,8 @@ class AuthServiceProvider extends ServiceProvider
         Expense::class => ExpensePolicy::class,
         Remittance::class => RemittancePolicy::class,
         Order::class => OrderPolicy::class,
+        Supplier::class => SupplierPolicy::class,
+        PurchaseOrder::class => PurchaseOrderPolicy::class,
     ];
 
     /**

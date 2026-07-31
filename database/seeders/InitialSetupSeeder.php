@@ -80,6 +80,13 @@ class InitialSetupSeeder extends Seeder
             // (CheckoutService's COGS posting) — see RFC.md Ledger Mechanics.
             ['code' => 'INVENTORY_ASSET', 'name' => 'Inventory Asset', 'account_type' => 'asset', 'counts_as_cash' => false],
             ['code' => 'COGS_EXPENSE', 'name' => 'Cost of Goods Sold', 'account_type' => 'expense', 'counts_as_cash' => false],
+            // Purchasing (PurchaseOrderService): a "source" account like SALES_REVENUE —
+            // its balance goes more negative as goods are received on credit (abs value =
+            // amount owed) and back toward zero as payments post. Not meant to be read
+            // directly for "amount owed" reporting; use SUM(purchase_orders.balance_due)
+            // instead (same reasoning DashboardService already applies to SALES_REVENUE:
+            // compute from the source rows, not this account's running total).
+            ['code' => 'ACCOUNTS_PAYABLE', 'name' => 'Accounts Payable', 'account_type' => 'liability', 'counts_as_cash' => false],
         ];
 
         foreach ($globalAccounts as $account) {
