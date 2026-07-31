@@ -1,0 +1,9 @@
+Please read AGENTS.md in the root directory for all AI instructions, coding rules, naming conventions, database patterns, and testing requirements. It is the single source of truth for this repository.
+
+Key points:
+- Always start by reading docs/PRD.md and docs/RFC.md for context
+- Use the Safe Commands section for all operations
+- Follow Naming Conventions exactly when adding new files
+- All inventory mutations must use DB::transaction() + lockForUpdate()
+- Run `php artisan test` before committing
+- Update docs/Documentation.md when code changes
