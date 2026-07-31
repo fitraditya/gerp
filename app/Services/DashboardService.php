@@ -29,6 +29,9 @@ class DashboardService
         $totalSalesGross = (float) (clone $orderBase)->sum('subtotal');
         $totalDiskon = (float) (clone $orderBase)->sum('discount_amount');
         $totalOmzetNet = $totalSalesGross - $totalDiskon;
+        $totalCogs = (float) (clone $orderBase)->sum('cogs_total');
+        $totalGrossProfit = (float) (clone $orderBase)->sum('gross_profit');
+        $grossMarginPct = $totalOmzetNet > 0 ? ($totalGrossProfit / $totalOmzetNet) * 100 : 0.0;
 
         $expenseBase = fn (?string $fundPool = null) => Expense::withoutGlobalScope(WarehouseScope::class)
             ->whereBetween('created_at', [$periodStart, $periodEnd])
@@ -54,9 +57,14 @@ class DashboardService
             'stock_awal_value' => $stock['value_awal'],
             'stock_akhir_qty' => $stock['qty_akhir'],
             'stock_akhir_value' => $stock['value_akhir'],
+            'stock_awal_value_cost' => $stock['value_awal_cost'],
+            'stock_akhir_value_cost' => $stock['value_akhir_cost'],
             'total_sales_gross' => $totalSalesGross,
             'total_diskon' => $totalDiskon,
             'total_omzet_net' => $totalOmzetNet,
+            'total_cogs' => $totalCogs,
+            'total_gross_profit' => $totalGrossProfit,
+            'gross_margin_pct' => $grossMarginPct,
             'biaya_pengembangan' => $biayaPengembangan,
             'operasional_gerai' => $operasionalGerai,
             'biaya_sdm' => $biayaSdm,

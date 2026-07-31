@@ -69,10 +69,17 @@ class InitialSetupSeeder extends Seeder
             ['code' => 'SALES_REVENUE', 'name' => 'Sales Revenue', 'account_type' => 'revenue', 'counts_as_cash' => false],
             ['code' => 'QRIS_CLEARING', 'name' => 'QRIS Clearing', 'account_type' => 'asset', 'counts_as_cash' => true],
             ['code' => 'IN_TRANSIT', 'name' => 'Remittance In-Transit', 'account_type' => 'asset', 'counts_as_cash' => true],
-            ['code' => LedgerService::poolCode('HR'), 'name' => 'Fund Pool: HR', 'account_type' => 'equity', 'counts_as_cash' => false],
-            ['code' => LedgerService::poolCode('OPS'), 'name' => 'Fund Pool: Operations', 'account_type' => 'equity', 'counts_as_cash' => false],
-            ['code' => LedgerService::poolCode('DEV'), 'name' => 'Fund Pool: Development', 'account_type' => 'equity', 'counts_as_cash' => false],
-            ['code' => LedgerService::poolCode('DISC'), 'name' => 'Fund Pool: Discretionary', 'account_type' => 'equity', 'counts_as_cash' => false],
+            // Spend categories, not owner capital — 'expense', not 'equity' (see
+            // 2026_08_01_090000_reclassify_fund_pool_accounts_as_expense migration).
+            ['code' => LedgerService::poolCode('HR'), 'name' => 'Fund Pool: HR', 'account_type' => 'expense', 'counts_as_cash' => false],
+            ['code' => LedgerService::poolCode('OPS'), 'name' => 'Fund Pool: Operations', 'account_type' => 'expense', 'counts_as_cash' => false],
+            ['code' => LedgerService::poolCode('DEV'), 'name' => 'Fund Pool: Development', 'account_type' => 'expense', 'counts_as_cash' => false],
+            ['code' => LedgerService::poolCode('DISC'), 'name' => 'Fund Pool: Discretionary', 'account_type' => 'expense', 'counts_as_cash' => false],
+            // Inventory-on-hand valued at cost (InventoryService::receiveStock's optional
+            // funding-source posting) and its offsetting expense at sale time
+            // (CheckoutService's COGS posting) — see RFC.md Ledger Mechanics.
+            ['code' => 'INVENTORY_ASSET', 'name' => 'Inventory Asset', 'account_type' => 'asset', 'counts_as_cash' => false],
+            ['code' => 'COGS_EXPENSE', 'name' => 'Cost of Goods Sold', 'account_type' => 'expense', 'counts_as_cash' => false],
         ];
 
         foreach ($globalAccounts as $account) {

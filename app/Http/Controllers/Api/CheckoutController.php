@@ -36,9 +36,31 @@ class CheckoutController extends Controller
         }
 
         return response()->json([
-            'order' => $order,
+            'order' => $this->serializeOrder($order, $user),
             'has_negative_stock_flag' => (bool) $order->has_negative_stock_flag,
         ], 201);
+    }
+
+    /**
+     * Margin data (cogs_total/gross_profit, per-item unit_cost/cost_subtotal) mirrors
+     * the ErpDashboard gating (RBAC.md Dashboard Widget Visibility): Product.cost_price
+     * is Admin/Manager-only, so a Staff cashier's checkout response must not leak it
+     * back through the API just because they placed the order.
+     */
+    private function serializeOrder($order, $user): array
+    {
+        $data = $order->toArray();
+
+        if ($user->hasAnyRole(['Admin', 'Manager'])) {
+            return $data;
+        }
+
+        unset($data['cogs_total'], $data['gross_profit']);
+        $data['items'] = collect($data['items'] ?? [])
+            ->map(fn ($item) => collect($item)->except(['unit_cost', 'cost_subtotal'])->all())
+            ->all();
+
+        return $data;
     }
 
     private function resolveWarehouseId($user, int $branchId): int

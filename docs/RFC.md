@@ -125,6 +125,7 @@ graph TB
 | Expense / Ledger | `ExpenseResource`, `CashAccountResource` (read) | — | `LedgerService::recordExpense()` |
 | Cash Remittance | `CashRemittanceResource` (verify action) | `POST /api/v1/finance/remit` | `RemittanceService::submit()`, `RemittanceService::verify()` |
 | Dashboard | Filament Widgets (`InventoryHealthWidget`, `CashPositionWidget`, `SalesTrendWidget`) scoped by role | `GET /api/v1/dashboard/summary` | `DashboardService::summarize()` |
+| Financial Reports (Chart of Accounts) | `FinancialReports` page (Admin/Manager only) — trial balance + period P&L | — | `LedgerReportService::trialBalance()`, `LedgerReportService::profitAndLoss()` |
 | Auth | Filament login (session) | `POST /api/v1/auth/login` (Sanctum token issuance) | — |
 
 #### Roles & Permission Matrix
@@ -383,6 +384,7 @@ erDiagram
         string name
         text description
         decimal price_tier "12,2"
+        decimal cost_price "12,2 - nullable, RFC addition (COGS/margin reporting)"
         string category
         timestamp created_at
     }
@@ -437,6 +439,8 @@ erDiagram
         uuid discount_id FK "nullable"
         enum payment_mode "CASH, QRIS"
         decimal total_price "12,2"
+        decimal cogs_total "12,2 - RFC addition (COGS/margin reporting)"
+        decimal gross_profit "12,2 - RFC addition, = total_price - cogs_total"
         boolean has_negative_stock_flag "RFC addition"
         timestamp created_at
     }
@@ -448,6 +452,8 @@ erDiagram
         int quantity
         decimal unit_price "12,2"
         decimal subtotal "12,2 - RFC addition"
+        decimal unit_cost "12,2 - RFC addition, snapshot of product.cost_price at sale time"
+        decimal cost_subtotal "12,2 - RFC addition"
     }
 
     CASH_ACCOUNTS {
@@ -494,6 +500,7 @@ erDiagram
 - **`cash_remittances`** is new as a table — the PRD defines the fields for Story 5 in prose (`remit_id`, `branch_id`, `amount`, `status`, `recipient_id`) but omits it from the formal "Schema Change Tables" list. This RFC formalizes it.
 - **`cash_transactions` deviates from the PRD's literal schema hooks.** PRD's version has `source_cash_id` + `target_pool` + separate `debit`/`credit` decimal columns on one row (ambiguous about the counterparty account). This RFC replaces it with `from_account_id` / `to_account_id` (both required) + a single `amount` — every money movement names both accounts it touches (see Ledger Mechanics below).
 - **`users.role`** adds `STAFF` — the PRD's formal schema table only lists `ADMIN, MANAGER, SUPERVISOR`, but Story 2's Business Logic explicitly grants checkout permission to "Staff (Cashier)". Confirmed with stakeholders 2026-07-17.
+- **`products.cost_price` / `orders.cogs_total` / `orders.gross_profit`** are new (2026-07-31, ERP-gap follow-up). `cost_price` is nullable — donated stock commonly has no acquisition cost, and null reads as Rp0 in margin math rather than an error. `CheckoutService::process()` snapshots `unit_cost` per line at sale time (not a live join to `products.cost_price`) so a later cost edit never rewrites a closed order's historical margin. `InventoryReportService::stockSummary()` gained `value_*_cost` keys (stock valued at cost, alongside the existing retail-priced `value_*`) for inventory-valuation reporting. These are display/reporting-only for now — **no ledger entries are posted for inventory value or COGS yet** (no `INVENTORY_ASSET`/`COGS_EXPENSE` `cash_accounts` rows exist). That lands with the Chart-of-Accounts follow-up, so `receiveStock()`/checkout's ledger posting stay unchanged in this pass.
 
 #### Ledger Mechanics (Fund Pool Routing)
 
@@ -509,6 +516,16 @@ Every `cash_transactions` row records exactly one balanced movement: `from_accou
 | Remit verify (Story 5) | `IN_TRANSIT` | `CENTRAL_TREASURY` | Confirmed cash lands in treasury. |
 
 **Why not a full `journal_entries` / `journal_lines` pair (traditional multi-line double-entry)?** Every event in this PRD is a simple two-party movement — nothing requires splitting one transaction across more than two accounts. A single table with `from_account_id`/`to_account_id`/`amount` gives the guarantee that matters most for reporting — every account's balance is fully derivable from the transaction log, and the sum entering an account always equals the sum leaving its counterparties — without the schema/query overhead of a header+lines model. If a future requirement needs one event to fan out across 3+ accounts, that's the trigger to migrate to `journal_entries`/`journal_lines`; nothing in the current PRD requires it. A trial balance report is just `SUM(amount) GROUP BY to_account_id` minus `SUM(amount) GROUP BY from_account_id`.
+
+#### Chart of Accounts (2026-08-01, ERP-gap follow-up, Phase 2 of 4: COGS -> COA -> Purchasing -> Returns)
+
+`cash_accounts` *is* the Chart of Accounts — `CashAccount::ACCOUNT_TYPES` formalizes the five classifications (`asset`/`liability`/`equity`/`revenue`/`expense`) and `CashAccount::normalBalance()` maps each to its GAAP normal-balance side (`asset`/`expense` -> debit, everything else -> credit). This is a *classification* layer over the existing from/to ledger mechanics above, not a replacement — `.balance` is still maintained incrementally by `LedgerService::post()` exactly as before, so it already **is** a live trial balance; `LedgerReportService::trialBalance()` just groups/subtotals it by `account_type`.
+
+Two account types were fixed/added on top of the original seed data:
+- **Fund pools (`POOL-HR/OPS/DEV/DISC`) reclassified `equity` -> `expense`.** They only ever receive credit entries (spend), never fund anything back out — that's an expense category, not owner capital. See `2026_08_01_090000_reclassify_fund_pool_accounts_as_expense` migration.
+- **`INVENTORY_ASSET` (asset) and `COGS_EXPENSE` (expense) added.** `InventoryService::receiveStock()` gained an *optional* `$fundingSource` parameter — when given (and `products.cost_price` is positive), it posts `from:$fundingSource -> to:INVENTORY_ASSET`. Every existing call site keeps working unchanged since it's opt-in (donated stock has no cost/funding source to post). `CheckoutService::process()` now unconditionally posts `from:INVENTORY_ASSET -> to:COGS_EXPENSE` for `cogs_total > 0` (Phase 1's per-line `unit_cost` snapshot), recognizing the expense against whatever inventory value was built up at receipt. **Known limitation:** if stock was received without a funding source but later sold with a nonzero `cost_price`, `INVENTORY_ASSET` goes negative — same "allow it, don't block the sale" tolerance this system already applies to negative stock quantity, not a bug.
+
+`LedgerReportService::profitAndLoss($periodStart, $periodEnd, ?$warehouseId)` is period-scoped (unlike `.balance`, which is all-time) — it reads `SUM(debit)` on revenue-type accounts and `SUM(credit)` on expense-type accounts (including `COGS_EXPENSE`) from the `ledgers` log directly, per the from/to direction each event actually posts in.
 
 ### APIs
 
@@ -641,6 +658,8 @@ Recommend a single-branch pilot running in parallel with the existing spreadshee
 |---|---|---|
 | 2026-07-17 | Stakeholder (Product) | Resolved the 5 open questions from the initial draft: (1) Supervisor-driven opname is the stock-correction path, no auto GL write-off; (2) Cashier confirmed as `STAFF` role; (3) ledger design delegated to engineering — resolved as single-table double-entry (§2 Database Model); (4) `IN_TRANSIT` cash account approach confirmed; (5) POS Phase 1 confirmed online-only, outage fallback is manual paper + later re-entry, not a build item. |
 | 2026-07-18 | Stakeholder (Product) | Resolved open item #6: single global `SALES_REVENUE` stays — per-branch revenue is derivable from `orders.warehouse_id`, no ledger split needed unless trial-balance-grade per-branch statements are ever required. Remaining open: #7 (logging guideline cross-check) and #8 (owner/approver metadata). |
+| 2026-07-31 | ERP-gap analysis follow-up (Phase 1 of 4: COGS -> COA -> Purchasing -> Returns) | Added `products.cost_price`, `orders.cogs_total`/`gross_profit` for margin/profit reporting — see Database Model notes above. `ErpDashboard`'s COGS/Gross Profit tiles are gated to Admin/Manager (see RBAC.md Dashboard Widget Visibility) since cost data is more sensitive than revenue. Phase 2 (real Chart of Accounts) will add `INVENTORY_ASSET`/`COGS_EXPENSE` ledger postings that this phase deliberately left as reporting-only. |
+| 2026-08-01 | ERP-gap analysis follow-up (Phase 2 of 4) | Landed the Chart of Accounts follow-up flagged above — see Database Model "Chart of Accounts" subsection. New `FinancialReports` page (Trial Balance + P&L), Admin/Manager only. Next: Phase 3 (Supplier + PO), Phase 4 (Returns). |
 | | | |
 
 ---

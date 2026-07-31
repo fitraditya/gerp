@@ -33,6 +33,16 @@
         {!! $tile('#a16207', '#ffffff', $t('biaya_pengembangan'), $fmt($s['biaya_pengembangan']), $t('biaya_pengembangan_sub')) !!}
     </div>
 
+    {{-- Margin numbers derive from Product.cost_price, which only Admin/Manager can
+         see/edit on the Product resource (RoleGatedPolicy). Keep this row behind the
+         same boundary so a Supervisor's branch dashboard doesn't leak cost data. --}}
+    @if (auth()->user()->hasAnyRole(['Admin', 'Manager']))
+        <div style="{{ $tileGrid }}">
+            {!! $tile('#7c2d12', '#ffffff', $t('total_cogs'), $fmt($s['total_cogs']), $t('total_cogs_sub')) !!}
+            {!! $tile('#065f46', '#ffffff', $t('total_gross_profit'), $fmt($s['total_gross_profit']), $t('total_gross_profit_sub', ['margin' => number_format($s['gross_margin_pct'], 1)])) !!}
+        </div>
+    @endif
+
     <div style="{{ $tileGrid }}">
         {{-- PDF dashboard semantics: the headline number is the ACTIVE gerai count
              ("Total Gerai: 2, Gerai Aktif"); registered-but-dormant mitra stay in the

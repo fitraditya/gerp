@@ -109,6 +109,41 @@ class CheckoutServiceTest extends TestCase
         ], $this->warehouse->id, $cashier->id);
     }
 
+    public function test_checkout_snapshots_unit_cost_and_computes_gross_profit(): void
+    {
+        $cashier = $this->makeUser('Staff', $this->warehouse->id);
+        $product = Product::factory()->create(['price' => 10000, 'cost_price' => 4000]);
+        $this->inventory->receiveStock($product, $this->warehouse->id, 5, $cashier->id);
+
+        $order = $this->checkout->process([
+            'idempotency_key' => 'test-cogs-key',
+            'payment_method' => 'cash',
+            'items' => [['product_id' => $product->id, 'quantity' => 3]],
+        ], $this->warehouse->id, $cashier->id);
+
+        $this->assertEquals(12000, $order->cogs_total);
+        $this->assertEquals(18000, $order->gross_profit);
+        $this->assertEquals(4000, $order->items[0]['unit_cost']);
+        $this->assertEquals(12000, $order->items[0]['cost_subtotal']);
+    }
+
+    public function test_checkout_treats_null_cost_price_as_zero(): void
+    {
+        // Donated stock commonly has no recorded acquisition cost.
+        $cashier = $this->makeUser('Staff', $this->warehouse->id);
+        $product = Product::factory()->create(['price' => 10000, 'cost_price' => null]);
+        $this->inventory->receiveStock($product, $this->warehouse->id, 5, $cashier->id);
+
+        $order = $this->checkout->process([
+            'idempotency_key' => 'test-null-cost-key',
+            'payment_method' => 'cash',
+            'items' => [['product_id' => $product->id, 'quantity' => 2]],
+        ], $this->warehouse->id, $cashier->id);
+
+        $this->assertEquals(0, $order->cogs_total);
+        $this->assertEquals(20000, $order->gross_profit);
+    }
+
     public function test_qris_checkout_routes_to_qris_clearing_not_branch_drawer(): void
     {
         $cashier = $this->makeUser('Staff', $this->warehouse->id);

@@ -87,6 +87,57 @@ class CheckoutApiTest extends TestCase
         $response->assertStatus(422);
     }
 
+    public function test_cashier_checkout_response_hides_cost_and_margin_fields(): void
+    {
+        // Product.cost_price/margin data is Admin/Manager-only (see RBAC.md Dashboard
+        // Widget Visibility) — a Staff cashier's own checkout response must not leak it.
+        $this->seedRolesAndAccounts();
+        $warehouse = Warehouse::factory()->create();
+        $branch = Branch::factory()->create(['warehouse_id' => $warehouse->id]);
+        CashAccount::factory()->create(['code' => LedgerService::drawerCode($warehouse->code), 'balance' => 0]);
+        $product = Product::factory()->create(['price' => 10000, 'cost_price' => 4000]);
+        app(InventoryService::class)->receiveStock($product, $warehouse->id, 5);
+
+        $cashier = $this->makeUser('Staff', $warehouse->id);
+        Sanctum::actingAs($cashier, ['pos:*']);
+
+        $response = $this->postJson('/api/v1/pos/checkout', [
+            'idempotency_key' => 'api-key-cost-hidden',
+            'branch_id' => $branch->id,
+            'payment_method' => 'cash',
+            'items' => [['product_id' => $product->id, 'quantity' => 2]],
+        ]);
+
+        $response->assertStatus(201);
+        $order = $response->json('order');
+        $this->assertArrayNotHasKey('cogs_total', $order);
+        $this->assertArrayNotHasKey('gross_profit', $order);
+        $this->assertArrayNotHasKey('unit_cost', $order['items'][0]);
+        $this->assertArrayNotHasKey('cost_subtotal', $order['items'][0]);
+    }
+
+    public function test_manager_checkout_response_includes_cost_and_margin_fields(): void
+    {
+        $this->seedRolesAndAccounts();
+        $warehouse = Warehouse::factory()->create();
+        $branch = Branch::factory()->create(['warehouse_id' => $warehouse->id]);
+        CashAccount::factory()->create(['code' => LedgerService::drawerCode($warehouse->code), 'balance' => 0]);
+        $product = Product::factory()->create(['price' => 10000, 'cost_price' => 4000]);
+        app(InventoryService::class)->receiveStock($product, $warehouse->id, 5);
+
+        $manager = $this->makeUser('Manager', $warehouse->id);
+        Sanctum::actingAs($manager, ['pos:*']);
+
+        $response = $this->postJson('/api/v1/pos/checkout', [
+            'idempotency_key' => 'api-key-cost-visible',
+            'branch_id' => $branch->id,
+            'payment_method' => 'cash',
+            'items' => [['product_id' => $product->id, 'quantity' => 2]],
+        ]);
+
+        $response->assertStatus(201)->assertJsonPath('order.cogs_total', '8000.00');
+    }
+
     public function test_checkout_requires_idempotency_key(): void
     {
         $this->seedRolesAndAccounts();

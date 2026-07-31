@@ -15,6 +15,10 @@ class InventoryReportService
      * price (no historical price tracking) — matches how the source spreadsheet
      * itself only ever shows one price per tier, not a price-at-the-time.
      *
+     * value_* uses retail price (sell-through value); value_*_cost uses cost_price
+     * (what the stock on hand is actually worth on the books). Null cost_price reads
+     * as 0, same convention as CheckoutService's COGS snapshot.
+     *
      * Period-boundary convention: movements timestamped ON $periodStart count as
      * in-period, so Stock Awal excludes them. An opening intake dated exactly at the
      * period start therefore yields Stock Awal = 0 for those items — pick a period
@@ -44,21 +48,27 @@ class InventoryReportService
             ->pluck('delta', 'product_id');
 
         $prices = Product::pluck('price', 'id');
+        $costs = Product::pluck('cost_price', 'id');
 
         $qtyAwal = 0;
         $qtyAkhir = 0;
         $valueAwal = 0.0;
         $valueAkhir = 0.0;
+        $valueAwalCost = 0.0;
+        $valueAkhirCost = 0.0;
 
         foreach ($currentByProduct as $productId => $qtyNow) {
             $delta = (int) ($movedSincePeriodStart[$productId] ?? 0);
             $qtyStart = $qtyNow - $delta;
             $price = (float) ($prices[$productId] ?? 0);
+            $cost = (float) ($costs[$productId] ?? 0);
 
             $qtyAwal += $qtyStart;
             $qtyAkhir += $qtyNow;
             $valueAwal += $qtyStart * $price;
             $valueAkhir += $qtyNow * $price;
+            $valueAwalCost += $qtyStart * $cost;
+            $valueAkhirCost += $qtyNow * $cost;
         }
 
         return [
@@ -66,6 +76,8 @@ class InventoryReportService
             'qty_akhir' => $qtyAkhir,
             'value_awal' => $valueAwal,
             'value_akhir' => $valueAkhir,
+            'value_awal_cost' => $valueAwalCost,
+            'value_akhir_cost' => $valueAkhirCost,
         ];
     }
 }

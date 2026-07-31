@@ -72,6 +72,7 @@ class CheckoutService
             }
 
             $subtotal = 0;
+            $cogsTotal = 0;
             $lineItems = [];
             foreach ($sortedItems as $item) {
                 $product = $products->get($item['product_id']);
@@ -87,16 +88,26 @@ class CheckoutService
                 $lineSubtotal = $unitPrice * $qty;
                 $subtotal += $lineSubtotal;
 
+                // Snapshotted at sale time: product.cost_price can change later, but this
+                // order's margin must keep reflecting what it actually cost back then.
+                // Null cost_price (unknown / donated stock) reads as 0, not an error.
+                $unitCost = (float) ($product->cost_price ?? 0);
+                $lineCost = $unitCost * $qty;
+                $cogsTotal += $lineCost;
+
                 $lineItems[] = [
                     'product_id' => $product->id,
                     'quantity' => $qty,
                     'unit_price' => $unitPrice,
                     'subtotal' => $lineSubtotal,
+                    'unit_cost' => $unitCost,
+                    'cost_subtotal' => $lineCost,
                 ];
             }
 
             $discountAmount = $discount ? min($discount->calculateDiscount($subtotal), $subtotal) : 0;
             $total = $subtotal - $discountAmount;
+            $grossProfit = $total - $cogsTotal;
 
             $order = Order::create([
                 'order_number' => 'ORD-'.uniqid(),
@@ -107,6 +118,8 @@ class CheckoutService
                 'subtotal' => $subtotal,
                 'discount_amount' => $discountAmount,
                 'total' => $total,
+                'cogs_total' => $cogsTotal,
+                'gross_profit' => $grossProfit,
                 'payment_method' => strtolower($payload['payment_method'] ?? 'cash'),
                 'status' => 'completed',
                 'completed_at' => $occurredAt ?? now(),
@@ -145,6 +158,24 @@ class CheckoutService
                 actorId: $cashierId,
                 occurredAt: $occurredAt,
             );
+
+            // Recognizes COGS against the inventory asset built up by InventoryService's
+            // optional funding-source posting on receipt. Skipped for $0 cost (donated
+            // stock, or cost_price never recorded) — nothing to move, and it keeps
+            // COGS_EXPENSE/INVENTORY_ASSET untouched for sales that never funded inventory.
+            if ($cogsTotal > 0) {
+                $this->ledgerService->post(
+                    from: 'INVENTORY_ASSET',
+                    to: 'COGS_EXPENSE',
+                    amount: (float) $cogsTotal,
+                    type: 'cogs',
+                    description: "COGS {$order->order_number}",
+                    transactionable: $order,
+                    warehouseId: $warehouseId,
+                    actorId: $cashierId,
+                    occurredAt: $occurredAt,
+                );
+            }
 
             if ($hasNegativeStock) {
                 event(new \App\Events\NegativeStockFlag($order));

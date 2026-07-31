@@ -35,6 +35,11 @@ return [
         'biaya_sdm' => 'Biaya SDM',
         'biaya_sdm_sub' => 'Jumlah SDM :count Orang',
         'saldo_kas' => 'Saldo Kas',
+
+        'total_cogs' => 'Harga Pokok Penjualan',
+        'total_cogs_sub' => 'HPP (Periode Omzet Net)',
+        'total_gross_profit' => 'Laba Kotor',
+        'total_gross_profit_sub' => 'Margin :margin%',
     ],
 
     'cash_table' => [

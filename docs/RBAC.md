@@ -85,6 +85,9 @@ public static function canView(): bool
 - **InventoryHealthWidget**: Admin, Manager, Supervisor
 - **CashPositionWidget**: Admin, Manager only
 - **SalesTrendWidget**: Admin, Manager, Supervisor
+- **ErpDashboard COGS/Gross Profit tiles**: Admin, Manager only. `ErpDashboard` itself is visible to Admin/Manager/Supervisor, but the margin row (`resources/views/filament/pages/erp-dashboard.blade.php`) is wrapped in `@if (auth()->user()->hasAnyRole(['Admin', 'Manager']))` — cost data (`Product.cost_price`) is only editable/visible to Admin/Manager on `ProductResource` (`RoleGatedPolicy` default), so derived margin numbers stay behind the same boundary rather than leaking to a branch Supervisor.
+- **FinancialReports page** (Trial Balance + P&L): Admin, Manager only (`canAccess()`), same reasoning as the dashboard margin tiles — this page shows `COGS_EXPENSE`/`INVENTORY_ASSET` account detail directly.
+- **POS checkout API response**: `CheckoutController::serializeOrder()` strips `cogs_total`/`gross_profit`/`unit_cost`/`cost_subtotal` from the JSON response unless the caller (`$request->user()`) is Admin/Manager — a Staff cashier's own checkout response must not leak cost/margin data just because they placed the order. Mirror this if you add any other endpoint that serializes `Order` directly.
 
 ---
 

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\CashAccount;
 use App\Models\Inventory;
 use App\Models\InventoryAudit;
 use App\Models\InventoryMovement;
@@ -13,6 +14,10 @@ use Illuminate\Support\Facades\DB;
 
 class InventoryService
 {
+    public function __construct(private LedgerService $ledgerService)
+    {
+    }
+
     /**
      * Lock (or create-then-lock) the inventory row for a product/warehouse pair.
      * Must run inside an outer DB::transaction(). Bypasses WarehouseScope: this is
@@ -86,14 +91,46 @@ class InventoryService
         return $inventory;
     }
 
-    public function receiveStock(Product $product, int $warehouseId, int $qty, ?int $actorId = null, ?\DateTimeInterface $occurredAt = null): Inventory
-    {
-        return DB::transaction(function () use ($product, $warehouseId, $qty, $actorId, $occurredAt) {
+    /**
+     * $fundingSource is optional and off by default — every existing call site (Filament's
+     * "Receive Stock" action, opname/transfer flows, seeders, tests) keeps working
+     * unchanged. When given, and the product has a positive cost_price, this also posts
+     * a real double-entry ledger movement (debit INVENTORY_ASSET / credit $fundingSource)
+     * so inventory-on-hand actually shows up as a valued asset instead of just a
+     * reporting-only number (see InventoryReportService::stockSummary's value_*_cost).
+     * Stock received without a funding source (e.g. donated goods, cost unknown) posts
+     * no ledger entry — same "not every event needs an accounting entry" tolerance this
+     * codebase already applies to negative stock.
+     */
+    public function receiveStock(
+        Product $product,
+        int $warehouseId,
+        int $qty,
+        ?int $actorId = null,
+        ?\DateTimeInterface $occurredAt = null,
+        string|CashAccount|null $fundingSource = null
+    ): Inventory {
+        return DB::transaction(function () use ($product, $warehouseId, $qty, $actorId, $occurredAt, $fundingSource) {
             $inventory = $this->lockInventory($product->id, $warehouseId);
             $inventory->quantity += $qty;
             $inventory->save();
 
             $this->logMovement($product->id, $warehouseId, 'RECEIVE', $qty, null, $actorId, $occurredAt);
+
+            $unitCost = (float) ($product->cost_price ?? 0);
+            if ($fundingSource !== null && $unitCost > 0) {
+                $this->ledgerService->post(
+                    from: $fundingSource,
+                    to: 'INVENTORY_ASSET',
+                    amount: $unitCost * $qty,
+                    type: 'inventory_receipt',
+                    description: "Receive {$qty}x {$product->sku} @ Rp{$unitCost}",
+                    transactionable: $product,
+                    warehouseId: $warehouseId,
+                    actorId: $actorId,
+                    occurredAt: $occurredAt,
+                );
+            }
 
             return $inventory;
         });

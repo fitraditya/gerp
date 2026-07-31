@@ -35,6 +35,11 @@ return [
         'biaya_sdm' => 'Staff Cost',
         'biaya_sdm_sub' => ':count Staff',
         'saldo_kas' => 'Cash Balance',
+
+        'total_cogs' => 'Cost of Goods Sold',
+        'total_cogs_sub' => 'COGS (Net Sales Period)',
+        'total_gross_profit' => 'Gross Profit',
+        'total_gross_profit_sub' => ':margin% Margin',
     ],
 
     'cash_table' => [

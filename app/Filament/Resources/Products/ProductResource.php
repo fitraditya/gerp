@@ -44,6 +44,12 @@ class ProductResource extends Resource
                 TextInput::make('name')->required()->maxLength(255),
                 Select::make('brand_id')->label('Brand')->relationship('brand', 'name')->searchable()->preload(),
                 TextInput::make('price')->required()->numeric()->prefix('Rp'),
+                TextInput::make('cost_price')
+                    ->label('Cost Price')
+                    ->helperText('Acquisition cost per unit. Leave blank for donated/free stock — treated as Rp0 in margin reports.')
+                    ->numeric()
+                    ->minValue(0)
+                    ->prefix('Rp'),
                 TextInput::make('tier')->label('Tier')->maxLength(255),
                 Textarea::make('description')->columnSpanFull(),
                 Toggle::make('is_active')->default(true),
@@ -58,6 +64,7 @@ class ProductResource extends Resource
                 TextColumn::make('name')->searchable()->sortable(),
                 TextColumn::make('brand.name')->label('Brand')->sortable(),
                 TextColumn::make('price')->money('IDR')->sortable(),
+                TextColumn::make('cost_price')->label('Cost Price')->money('IDR')->sortable()->toggleable(),
                 TextColumn::make('tier'),
                 IconColumn::make('is_active')->boolean(),
             ])

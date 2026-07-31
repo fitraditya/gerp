@@ -15,6 +15,7 @@ class ProductFactory extends Factory
             'name' => "Rp{$price} Tier",
             'brand_id' => null,
             'price' => $price,
+            'cost_price' => round($price * 0.4, 2),
             'tier' => "Rp{$price} Tier",
             'is_active' => true,
         ];

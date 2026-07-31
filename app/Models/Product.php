@@ -10,12 +10,13 @@ class Product extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $fillable = ['sku', 'name', 'description', 'brand_id', 'price', 'tier', 'is_active'];
+    protected $fillable = ['sku', 'name', 'description', 'brand_id', 'price', 'cost_price', 'tier', 'is_active'];
 
     protected function casts(): array
     {
         return [
             'price' => 'decimal:2',
+            'cost_price' => 'decimal:2',
             'is_active' => 'boolean',
         ];
     }

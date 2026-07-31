@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Inventories;
 
 use App\Filament\Resources\Inventories\Pages\ManageInventories;
+use App\Models\CashAccount;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\Warehouse;
@@ -73,10 +74,21 @@ class InventoryResource extends Resource
                 Select::make('product_id')->label('Product')->options(Product::query()->pluck('name', 'id'))->searchable()->required(),
                 Select::make('warehouse_id')->label('Warehouse')->options(Warehouse::query()->pluck('name', 'id'))->searchable()->required(),
                 TextInput::make('quantity')->numeric()->minValue(1)->required(),
+                Select::make('funding_source_code')
+                    ->label('Paid From')
+                    ->helperText('Optional. Only needed if this stock was purchased (not donated) and you want it posted as a real inventory asset against the account that paid for it.')
+                    ->options(CashAccount::active()->cash()->pluck('name', 'code'))
+                    ->searchable(),
             ])
             ->action(function (array $data) {
                 $product = Product::findOrFail($data['product_id']);
-                app(InventoryService::class)->receiveStock($product, (int) $data['warehouse_id'], (int) $data['quantity'], auth()->id());
+                app(InventoryService::class)->receiveStock(
+                    $product,
+                    (int) $data['warehouse_id'],
+                    (int) $data['quantity'],
+                    auth()->id(),
+                    fundingSource: $data['funding_source_code'] ?? null,
+                );
 
                 Notification::make()->title('Stock received')->success()->send();
             });
