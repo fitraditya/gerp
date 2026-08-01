@@ -2,6 +2,7 @@
 
 return [
     'nav_label' => 'Financial Reports',
+    'export_csv' => 'Export CSV',
 
     'filter' => [
         'period_start' => 'From Date',

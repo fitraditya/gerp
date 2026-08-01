@@ -2,6 +2,7 @@
 
 return [
     'nav_label' => 'Laporan Keuangan',
+    'export_csv' => 'Ekspor CSV',
 
     'filter' => [
         'period_start' => 'Dari Tanggal',

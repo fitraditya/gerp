@@ -6,6 +6,12 @@
     @php
         $fmt = fn ($v) => 'Rp' . number_format((float) $v, 0, ',', '.');
         $pl = $profitAndLoss;
+        $exportBtn = 'display:inline-block;padding:0.4rem 0.9rem;border-radius:0.375rem;background:#0f172a;color:#fff;font-size:0.8rem;font-weight:600;text-decoration:none;';
+        $plExportUrl = route('exports.profit-and-loss', [
+            'period_start' => $data['period_start'] ?? null,
+            'period_end' => $data['period_end'] ?? null,
+            'branch_id' => $data['branch_id'] ?? null,
+        ]);
         $tileGrid = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-top:1.5rem;';
         $tile = function (string $bg, string $fg, string $label, string $value) {
             $style = "background:{$bg};color:{$fg};border-radius:0.5rem;padding:1rem;text-align:center;";
@@ -16,7 +22,10 @@
         };
     @endphp
 
-    <h2 style="margin-top:1.5rem;font-weight:700;">{{ __('financial_reports.pl.title') }}</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:1.5rem;">
+        <h2 style="font-weight:700;">{{ __('financial_reports.pl.title') }}</h2>
+        <a href="{{ $plExportUrl }}" target="_blank" style="{{ $exportBtn }}">{{ __('financial_reports.export_csv') }}</a>
+    </div>
     <div style="{{ $tileGrid }}">
         {!! $tile('#166534', '#ffffff', __('financial_reports.pl.revenue'), $fmt($pl['revenue'])) !!}
         {!! $tile('#7c2d12', '#ffffff', __('financial_reports.pl.cogs'), $fmt($pl['cogs'])) !!}
@@ -25,7 +34,10 @@
         {!! $tile('#065f46', '#ffffff', __('financial_reports.pl.net_profit'), $fmt($pl['net_profit'])) !!}
     </div>
 
-    <h2 style="margin-top:2rem;font-weight:700;">{{ __('financial_reports.tb.title') }}</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:2rem;">
+        <h2 style="font-weight:700;">{{ __('financial_reports.tb.title') }}</h2>
+        <a href="{{ route('exports.trial-balance') }}" target="_blank" style="{{ $exportBtn }}">{{ __('financial_reports.export_csv') }}</a>
+    </div>
     @foreach ($trialBalance as $accountType => $accounts)
         <div style="margin-top:1rem;overflow-x:auto;border-radius:0.5rem;border:1px solid #e5e7eb;">
             <table style="width:100%;font-size:0.875rem;border-collapse:collapse;">

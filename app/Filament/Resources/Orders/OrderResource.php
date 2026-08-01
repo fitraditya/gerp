@@ -97,7 +97,15 @@ class OrderResource extends Resource
                 ViewAction::make(),
                 self::processReturnAction(),
             ])
-            ->toolbarActions([]);
+            ->toolbarActions([])
+            ->headerActions([
+                // No ->icon() here — deliberately avoiding an unverifiable Heroicon case
+                // name (no vendor/ present in this checkout to confirm against).
+                Action::make('exportCsv')
+                    ->label('Export CSV')
+                    ->url(fn () => route('exports.orders'))
+                    ->openUrlInNewTab(),
+            ]);
     }
 
     /**

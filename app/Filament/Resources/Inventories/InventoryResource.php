@@ -62,6 +62,10 @@ class InventoryResource extends Resource
             ->toolbarActions([])
             ->headerActions([
                 self::receiveStockAction(),
+                Action::make('exportCsv')
+                    ->label('Export CSV')
+                    ->url(fn () => route('exports.inventory'))
+                    ->openUrlInNewTab(),
             ]);
     }
 

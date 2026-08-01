@@ -128,6 +128,7 @@ graph TB
 | Financial Reports (Chart of Accounts) | `FinancialReports` page (Admin/Manager only) — trial balance + period P&L | — | `LedgerReportService::trialBalance()`, `LedgerReportService::profitAndLoss()` |
 | Purchasing (Supplier + PO) | `SupplierResource`, `PurchaseOrderResource` (+ custom "Receive"/"Record Payment"/"Cancel" actions) | — | `PurchaseOrderService::create()`, `PurchaseOrderService::receive()`, `PurchaseOrderService::recordPayment()`, `PurchaseOrderService::cancel()` |
 | Customer Returns | `SalesReturnResource` (read-only log) + `OrderResource`'s "Process Return" record action | — | `SalesReturnService::process()` |
+| Exportable Reports | "Export CSV" links on `FinancialReports`, `OrderResource`, `InventoryResource` | `GET /exports/{trial-balance,profit-and-loss,orders,inventory}.csv` (plain web route, not versioned API) | `CsvExportService::download()` |
 | Auth | Filament login (session) | `POST /api/v1/auth/login` (Sanctum token issuance) | — |
 
 #### Roles & Permission Matrix
@@ -606,6 +607,16 @@ Ledger-wise this is an exact reversal, reusing existing accounts (no new `cash_a
 
 **Out of scope:** exchanges (return + new sale as one atomic flow — currently two separate operations); restocking fees; returns against multiple orders in one action; supplier returns (see Purchasing subsection above).
 
+#### Exportable Reports (2026-08-01, ERP-gap follow-up — post-4-phase addition)
+
+`ExportController` (`app/Http/Controllers/ExportController.php`) serves plain CSV downloads for `FinancialReports` (Trial Balance, P&L), `OrderResource` (order log), and `InventoryResource` (current stock). Deliberately **not** Filament's native async export (job queue + `exports`/`export_columns` tables + completion notification) — that machinery can't be exercised in an environment without a running queue worker to verify against; a direct `response()->streamDownload()` (via `CsvExportService`) is synchronous, simple, and easy to reason about by hand.
+
+Routes live in `routes/web.php` under `/exports/*`, deliberately **without** the `auth` middleware alias — this app has no route named `login` (Filament's panel login isn't registered under that name), so Laravel's default `Authenticate` middleware would throw `RouteNotFoundException` attempting to redirect a guest instead of actually redirecting. `ExportController` checks `$request->user()` itself and `abort(403)`s, the same pattern `CheckoutController` already uses.
+
+**Authorization mirrors the underlying resource/page exactly, not a new permission concept:** trial-balance/P&L reuse `FinancialReports::canAccess()`; orders/inventory reuse `$request->user()->can('viewAny', Order::class)` / `Inventory::class` (existing policies) — and because neither export bypasses `WarehouseScope`, a Supervisor's CSV is transparently limited to their own warehouse the same way the Filament table already is. The orders export additionally omits `cogs_total`/`gross_profit` columns for non-Admin/Manager, mirroring `CheckoutController::serializeOrder()`'s existing cost-data gate.
+
+**CSV injection (OWASP):** `CsvExportService` prefixes a neutralizing `'` on any cell starting with `=`, `+`, `-`, `@`, tab, or CR — product names, cashier names, and other user-supplied text all flow into these exports, and any of those could otherwise open as a live formula in Excel/Sheets.
+
 ### APIs
 
 All POS-facing endpoints are versioned under `/api/v1`, authenticated via Sanctum bearer token issued per device/branch login. Admin-only actions (product/warehouse setup, expense entry, remittance verification) are Filament-only and not exposed as public API.
@@ -741,6 +752,7 @@ Recommend a single-branch pilot running in parallel with the existing spreadshee
 | 2026-08-01 | ERP-gap analysis follow-up (Phase 2 of 4) | Landed the Chart of Accounts follow-up flagged above — see Database Model "Chart of Accounts" subsection. New `FinancialReports` page (Trial Balance + P&L), Admin/Manager only. Next: Phase 3 (Supplier + PO), Phase 4 (Returns). |
 | 2026-08-01 | ERP-gap analysis follow-up (Phase 3 of 4) | Added `Supplier` + `PurchaseOrder` (Admin/Manager only, `PurchaseOrderResource`) — see Database Model "Purchasing / Accounts Payable" subsection. New `ACCOUNTS_PAYABLE` liability account. Next: Phase 4 (Returns). |
 | 2026-08-01 | ERP-gap analysis follow-up (Phase 4 of 4, final phase) | Added `SalesReturn` (`SalesReturnService`, same role set as POS Checkout) — see Database Model "Customer Returns" subsection. Fixed a real bug in the same pass: `LedgerReportService::profitAndLoss()`'s one-directional `SUM(debit)`/`SUM(credit)` read would have silently ignored return postings once they existed; changed to net both directions. `DashboardService` now nets returns out of period revenue/COGS/gross-profit. All 4 phases of the original ERP-gap analysis (COGS -> COA -> Purchasing -> Returns) are now complete; CRM/customer tracking remains explicitly out of scope per the original request. |
+| 2026-08-01 | Follow-up request: exportable reports/data | Added `ExportController` + `CsvExportService` — see Database Model "Exportable Reports" subsection. CSV downloads for Trial Balance, P&L, order log, and current stock; reuses existing policies/`WarehouseScope`, no new permission concept. Caught before shipping: a naive `Route::middleware('auth')` would have 500'd on a guest request (no route named `login` in this app) instead of denying access — routes check auth explicitly and `abort(403)` instead. |
 | | | |
 
 ---
