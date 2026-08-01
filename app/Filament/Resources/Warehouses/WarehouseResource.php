@@ -33,17 +33,39 @@ class WarehouseResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Master Data';
+    public static function getNavigationGroup(): ?string
+    {
+        return __('nav.master_data');
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return __('warehouses.nav_label');
+    }
+
+    public static function getModelLabel(): string
+    {
+        return __('warehouses.singular');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('warehouses.plural');
+    }
 
     public static function form(Schema $schema): Schema
     {
         return $schema
             ->components([
-                TextInput::make('code')->required()->unique(ignoreRecord: true)->maxLength(255),
-                TextInput::make('name')->required()->maxLength(255),
-                Select::make('type')->options(['central' => 'Central', 'branch' => 'Branch'])->default('central')->required(),
-                Textarea::make('address')->columnSpanFull(),
-                Toggle::make('is_active')->default(true),
+                TextInput::make('code')->label(__('warehouses.fields.code'))->required()->unique(ignoreRecord: true)->maxLength(255),
+                TextInput::make('name')->label(__('warehouses.fields.name'))->required()->maxLength(255),
+                Select::make('type')
+                    ->label(__('warehouses.fields.type'))
+                    ->options(['central' => __('warehouses.fields.type_central'), 'branch' => __('warehouses.fields.type_branch')])
+                    ->default('central')
+                    ->required(),
+                Textarea::make('address')->label(__('warehouses.fields.address'))->columnSpanFull(),
+                Toggle::make('is_active')->label(__('warehouses.fields.is_active'))->default(true),
             ]);
     }
 
@@ -51,10 +73,10 @@ class WarehouseResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('code')->searchable()->sortable(),
-                TextColumn::make('name')->searchable()->sortable(),
-                TextColumn::make('type')->badge(),
-                IconColumn::make('is_active')->boolean(),
+                TextColumn::make('code')->label(__('warehouses.fields.code'))->searchable()->sortable(),
+                TextColumn::make('name')->label(__('warehouses.fields.name'))->searchable()->sortable(),
+                TextColumn::make('type')->label(__('warehouses.fields.type'))->badge(),
+                IconColumn::make('is_active')->label(__('warehouses.fields.is_active'))->boolean(),
             ])
             ->filters([
                 TrashedFilter::make(),

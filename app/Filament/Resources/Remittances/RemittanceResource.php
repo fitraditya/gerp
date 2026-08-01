@@ -25,9 +25,25 @@ class RemittanceResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
+    public static function getNavigationGroup(): ?string
+    {
+        return __('nav.finance');
+    }
 
-    protected static ?string $modelLabel = 'Cash Remittance (Setoran Kas)';
+    public static function getNavigationLabel(): string
+    {
+        return __('remittances.nav_label');
+    }
+
+    public static function getModelLabel(): string
+    {
+        return __('remittances.singular');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('remittances.plural');
+    }
 
     public static function canEdit($record): bool
     {
@@ -59,16 +75,16 @@ class RemittanceResource extends Resource
         return $schema
             ->components([
                 Select::make('from_warehouse_id')
-                    ->label('Branch Warehouse')
+                    ->label(__('remittances.fields.from_warehouse'))
                     ->options(Warehouse::query()->where('type', 'branch')->pluck('name', 'id'))
                     ->searchable()
                     ->required(),
                 Select::make('source_cash_account_id')
-                    ->label('Cash Source')
+                    ->label(__('remittances.fields.source_cash_account'))
                     ->options(fn () => CashAccount::cash()->get()->mapWithKeys(fn ($a) => [$a->id => $a->name.($a->holder_name ? " ({$a->holder_name})" : '')]))
                     ->searchable()
                     ->required(),
-                TextInput::make('amount')->numeric()->required()->prefix('Rp'),
+                TextInput::make('amount')->label(__('remittances.fields.amount'))->numeric()->required()->prefix('Rp'),
             ]);
     }
 
@@ -76,17 +92,21 @@ class RemittanceResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('remittance_number')->searchable(),
-                TextColumn::make('fromWarehouse.name')->label('From'),
-                TextColumn::make('toWarehouse.name')->label('To'),
-                TextColumn::make('amount')->money('IDR')->sortable(),
-                TextColumn::make('status')->badge(),
-                TextColumn::make('submittedBy.name')->label('Submitted By'),
-                TextColumn::make('verifiedBy.name')->label('Verified By'),
-                TextColumn::make('created_at')->dateTime()->sortable(),
+                TextColumn::make('remittance_number')->label(__('remittances.fields.remittance_number'))->searchable(),
+                TextColumn::make('fromWarehouse.name')->label(__('remittances.fields.from')),
+                TextColumn::make('toWarehouse.name')->label(__('remittances.fields.to')),
+                TextColumn::make('amount')->label(__('remittances.fields.amount'))->money('IDR')->sortable(),
+                TextColumn::make('status')->label(__('remittances.fields.status'))->badge(),
+                TextColumn::make('submittedBy.name')->label(__('remittances.fields.submitted_by')),
+                TextColumn::make('verifiedBy.name')->label(__('remittances.fields.verified_by')),
+                TextColumn::make('created_at')->label(__('remittances.fields.created_at'))->dateTime()->sortable(),
             ])
             ->filters([
-                SelectFilter::make('status')->options(['pending' => 'Pending', 'verified' => 'Verified', 'rejected' => 'Rejected']),
+                SelectFilter::make('status')->options([
+                    'pending' => __('remittances.fields.status_pending'),
+                    'verified' => __('remittances.fields.status_verified'),
+                    'rejected' => __('remittances.fields.status_rejected'),
+                ]),
             ])
             ->recordActions([
                 self::verifyAction(),
@@ -97,11 +117,11 @@ class RemittanceResource extends Resource
     private static function verifyAction(): Action
     {
         return Action::make('verify')
-            ->label('Verify')
+            ->label(__('remittances.verify.action'))
             ->visible(fn (Remittance $record) => $record->status === 'pending' && auth()->user()?->can('verify', $record))
             ->schema([
                 Select::make('destination_cash_account_id')
-                    ->label('Deposit Into')
+                    ->label(__('remittances.verify.deposit_into'))
                     ->options(fn () => CashAccount::cash()->get()->mapWithKeys(fn ($a) => [$a->id => $a->name.($a->holder_name ? " ({$a->holder_name})" : '')]))
                     ->searchable()
                     ->required(),
@@ -109,7 +129,7 @@ class RemittanceResource extends Resource
             ->action(function (Remittance $record, array $data) {
                 app(RemittanceService::class)->verify($record, (int) $data['destination_cash_account_id'], auth()->id());
 
-                Notification::make()->title('Remittance verified, funds moved to treasury')->success()->send();
+                Notification::make()->title(__('remittances.verify.notification'))->success()->send();
             });
     }
 

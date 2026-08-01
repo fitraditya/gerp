@@ -1,6 +1,6 @@
 <div class="filament-widgets">
     <div style="padding:1rem;border-radius:8px;background:#fff;border:1px solid #eee;">
-        <h3 style="margin:0 0 0.5rem 0;font-size:0.9rem;color:#333;">Sales (last 7 days)</h3>
+        <h3 style="margin:0 0 0.5rem 0;font-size:0.9rem;color:#333;">{{ __('widgets.sales_trend.title') }}</h3>
         <div style="display:flex;gap:0.5rem;align-items:flex-end;">
             @foreach($series as $s)
                 <div style="width:12%;text-align:center;">

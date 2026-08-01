@@ -29,9 +29,25 @@ class OrderResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
+    public static function getNavigationGroup(): ?string
+    {
+        return __('nav.finance');
+    }
 
-    protected static ?string $modelLabel = 'Order Log';
+    public static function getNavigationLabel(): string
+    {
+        return __('orders.nav_label');
+    }
+
+    public static function getModelLabel(): string
+    {
+        return __('orders.singular');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('orders.plural');
+    }
 
     /** Orders are only ever created via CheckoutService (POS/API), never a raw form here. */
     public static function canCreate(): bool
@@ -53,19 +69,19 @@ class OrderResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
-            TextInput::make('order_number'),
-            TextInput::make('subtotal')->prefix('Rp'),
-            TextInput::make('discount_amount')->prefix('Rp'),
-            TextInput::make('total')->prefix('Rp'),
-            TextInput::make('payment_method'),
-            TextInput::make('has_negative_stock_flag')->label('Negative Stock Flag'),
-            TextInput::make('completed_at'),
+            TextInput::make('order_number')->label(__('orders.fields.order_number')),
+            TextInput::make('subtotal')->label(__('orders.fields.subtotal'))->prefix('Rp'),
+            TextInput::make('discount_amount')->label(__('orders.fields.discount_amount'))->prefix('Rp'),
+            TextInput::make('total')->label(__('orders.fields.total'))->prefix('Rp'),
+            TextInput::make('payment_method')->label(__('orders.fields.payment_method')),
+            TextInput::make('has_negative_stock_flag')->label(__('orders.fields.negative_stock_flag')),
+            TextInput::make('completed_at')->label(__('orders.fields.completed_at')),
             Repeater::make('items')
                 ->schema([
-                    TextInput::make('product_id'),
-                    TextInput::make('quantity'),
-                    TextInput::make('unit_price')->prefix('Rp'),
-                    TextInput::make('subtotal')->prefix('Rp'),
+                    TextInput::make('product_id')->label(__('orders.fields.item_product')),
+                    TextInput::make('quantity')->label(__('orders.fields.item_quantity')),
+                    TextInput::make('unit_price')->label(__('orders.fields.item_unit_price'))->prefix('Rp'),
+                    TextInput::make('subtotal')->label(__('orders.fields.item_subtotal'))->prefix('Rp'),
                 ])
                 ->columns(4)
                 ->columnSpanFull(),
@@ -76,22 +92,25 @@ class OrderResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('order_number')->searchable(),
-                TextColumn::make('warehouse.name')->label('Warehouse')->sortable(),
-                TextColumn::make('cashier.name')->label('Cashier'),
-                TextColumn::make('discount.code')->label('Discount'),
-                TextColumn::make('subtotal')->money('IDR'),
-                TextColumn::make('discount_amount')->money('IDR'),
-                TextColumn::make('total')->money('IDR')->sortable(),
-                TextColumn::make('payment_method')->badge(),
-                IconColumn::make('has_negative_stock_flag')->label('Neg. Stock')->boolean(),
-                TextColumn::make('completed_at')->dateTime()->sortable(),
+                TextColumn::make('order_number')->label(__('orders.fields.order_number'))->searchable(),
+                TextColumn::make('warehouse.name')->label(__('orders.fields.warehouse'))->sortable(),
+                TextColumn::make('cashier.name')->label(__('orders.fields.cashier')),
+                TextColumn::make('discount.code')->label(__('orders.fields.discount')),
+                TextColumn::make('subtotal')->label(__('orders.fields.subtotal'))->money('IDR'),
+                TextColumn::make('discount_amount')->label(__('orders.fields.discount_amount'))->money('IDR'),
+                TextColumn::make('total')->label(__('orders.fields.total'))->money('IDR')->sortable(),
+                TextColumn::make('payment_method')->label(__('orders.fields.payment_method'))->badge(),
+                IconColumn::make('has_negative_stock_flag')->label(__('orders.fields.negative_stock_short'))->boolean(),
+                TextColumn::make('completed_at')->label(__('orders.fields.completed_at'))->dateTime()->sortable(),
             ])
             ->defaultSort('completed_at', 'desc')
             ->filters([
-                SelectFilter::make('warehouse_id')->label('Warehouse')->relationship('warehouse', 'name'),
-                SelectFilter::make('payment_method')->options(['cash' => 'Cash', 'qris' => 'QRIS']),
-                TernaryFilter::make('has_negative_stock_flag')->label('Negative Stock Flag'),
+                SelectFilter::make('warehouse_id')->label(__('orders.fields.warehouse'))->relationship('warehouse', 'name'),
+                SelectFilter::make('payment_method')->options([
+                    'cash' => __('orders.fields.payment_method_cash'),
+                    'qris' => __('orders.fields.payment_method_qris'),
+                ]),
+                TernaryFilter::make('has_negative_stock_flag')->label(__('orders.fields.negative_stock_flag')),
             ])
             ->recordActions([
                 ViewAction::make(),
@@ -102,7 +121,7 @@ class OrderResource extends Resource
                 // No ->icon() here — deliberately avoiding an unverifiable Heroicon case
                 // name (no vendor/ present in this checkout to confirm against).
                 Action::make('exportCsv')
-                    ->label('Export CSV')
+                    ->label(__('orders.export_csv'))
                     ->url(fn () => route('exports.orders'))
                     ->openUrlInNewTab(),
             ]);
@@ -116,23 +135,23 @@ class OrderResource extends Resource
     private static function processReturnAction(): Action
     {
         return Action::make('processReturn')
-            ->label('Process Return')
+            ->label(__('orders.return.action'))
             ->visible(fn (Order $record) => auth()->user()?->hasAnyRole(['Admin', 'Manager', 'Supervisor'])
                 && $record->status === 'completed')
             ->schema([
-                Textarea::make('reason')->required()->minLength(5)->columnSpanFull(),
+                Textarea::make('reason')->label(__('orders.return.reason'))->required()->minLength(5)->columnSpanFull(),
                 Select::make('refund_method')
-                    ->label('Refund Via')
-                    ->helperText('Defaults to the order\'s original payment method if left blank.')
-                    ->options(['cash' => 'Cash', 'qris' => 'QRIS']),
+                    ->label(__('orders.return.refund_method'))
+                    ->helperText(__('orders.return.refund_method_help'))
+                    ->options(['cash' => __('orders.fields.payment_method_cash'), 'qris' => __('orders.fields.payment_method_qris')]),
                 Repeater::make('items')
                     ->schema([
                         Select::make('product_id')
-                            ->label('Product')
+                            ->label(__('orders.return.item_product'))
                             ->options(fn (Order $record) => collect($record->items)
                                 ->mapWithKeys(fn ($line) => [$line['product_id'] => Product::find($line['product_id'])?->name.' ('.$line['quantity'].' sold)']))
                             ->required(),
-                        TextInput::make('quantity')->numeric()->minValue(1)->required(),
+                        TextInput::make('quantity')->label(__('orders.return.item_quantity'))->numeric()->minValue(1)->required(),
                     ])
                     ->columns(2)
                     ->minItems(1)
@@ -147,7 +166,7 @@ class OrderResource extends Resource
                         auth()->id(),
                         $data['refund_method'] ?? null,
                     );
-                    Notification::make()->title('Return processed')->success()->send();
+                    Notification::make()->title(__('orders.return.processed_notification'))->success()->send();
                 } catch (\RuntimeException $e) {
                     Notification::make()->title($e->getMessage())->danger()->send();
                 }

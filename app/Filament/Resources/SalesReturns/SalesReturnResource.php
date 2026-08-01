@@ -23,9 +23,25 @@ class SalesReturnResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
+    public static function getNavigationGroup(): ?string
+    {
+        return __('nav.finance');
+    }
 
-    protected static ?string $modelLabel = 'Return';
+    public static function getNavigationLabel(): string
+    {
+        return __('sales_returns.nav_label');
+    }
+
+    public static function getModelLabel(): string
+    {
+        return __('sales_returns.singular');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('sales_returns.plural');
+    }
 
     public static function canCreate(): bool
     {
@@ -51,17 +67,17 @@ class SalesReturnResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('return_number')->searchable(),
-                TextColumn::make('order.order_number')->label('Order')->searchable(),
-                TextColumn::make('warehouse.name')->label('Warehouse')->sortable(),
-                TextColumn::make('refund_amount')->money('IDR')->sortable(),
-                TextColumn::make('refund_method')->badge(),
-                TextColumn::make('reason')->limit(50),
-                TextColumn::make('processed_at')->dateTime()->sortable(),
+                TextColumn::make('return_number')->label(__('sales_returns.fields.return_number'))->searchable(),
+                TextColumn::make('order.order_number')->label(__('sales_returns.fields.order'))->searchable(),
+                TextColumn::make('warehouse.name')->label(__('sales_returns.fields.warehouse'))->sortable(),
+                TextColumn::make('refund_amount')->label(__('sales_returns.fields.refund_amount'))->money('IDR')->sortable(),
+                TextColumn::make('refund_method')->label(__('sales_returns.fields.refund_method'))->badge(),
+                TextColumn::make('reason')->label(__('sales_returns.fields.reason'))->limit(50),
+                TextColumn::make('processed_at')->label(__('sales_returns.fields.processed_at'))->dateTime()->sortable(),
             ])
             ->defaultSort('processed_at', 'desc')
             ->filters([
-                SelectFilter::make('warehouse_id')->label('Warehouse')->relationship('warehouse', 'name'),
+                SelectFilter::make('warehouse_id')->label(__('sales_returns.fields.warehouse'))->relationship('warehouse', 'name'),
             ])
             ->recordActions([
                 ViewAction::make(),

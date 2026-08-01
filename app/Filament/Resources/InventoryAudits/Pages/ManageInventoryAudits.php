@@ -15,7 +15,7 @@ class ManageInventoryAudits extends ManageRecords
     {
         return [
             CreateAction::make()
-                ->label('Submit Opname')
+                ->label(__('inventory_audits.submit'))
                 ->using(fn (array $data) => app(InventoryService::class)->submitOpname(
                     (int) $data['product_id'],
                     (int) $data['warehouse_id'],

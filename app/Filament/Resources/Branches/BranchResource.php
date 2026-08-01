@@ -33,20 +33,41 @@ class BranchResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Master Data';
+    public static function getNavigationGroup(): ?string
+    {
+        return __('nav.master_data');
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return __('branches.nav_label');
+    }
+
+    public static function getModelLabel(): string
+    {
+        return __('branches.singular');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('branches.plural');
+    }
 
     public static function form(Schema $schema): Schema
     {
         return $schema
             ->components([
-                TextInput::make('code')->required()->unique(ignoreRecord: true)->maxLength(255),
-                TextInput::make('name')->required()->maxLength(255),
-                Select::make('jenis')->label('Jenis')->options(['masjid' => 'Masjid', 'bazzar' => 'Bazzar'])->required(),
-                TextInput::make('pic_name')->label('PIC')->maxLength(255),
-                Select::make('warehouse_id')->label('Warehouse')->relationship('warehouse', 'name')->required()->searchable()->preload(),
-                TextInput::make('phone')->tel()->maxLength(255),
-                Textarea::make('address')->columnSpanFull(),
-                Toggle::make('is_active')->default(true),
+                TextInput::make('code')->label(__('branches.fields.code'))->required()->unique(ignoreRecord: true)->maxLength(255),
+                TextInput::make('name')->label(__('branches.fields.name'))->required()->maxLength(255),
+                Select::make('jenis')
+                    ->label(__('branches.fields.jenis'))
+                    ->options(['masjid' => __('branches.fields.jenis_masjid'), 'bazzar' => __('branches.fields.jenis_bazzar')])
+                    ->required(),
+                TextInput::make('pic_name')->label(__('branches.fields.pic_name'))->maxLength(255),
+                Select::make('warehouse_id')->label(__('branches.fields.warehouse'))->relationship('warehouse', 'name')->required()->searchable()->preload(),
+                TextInput::make('phone')->label(__('branches.fields.phone'))->tel()->maxLength(255),
+                Textarea::make('address')->label(__('branches.fields.address'))->columnSpanFull(),
+                Toggle::make('is_active')->label(__('branches.fields.is_active'))->default(true),
             ]);
     }
 
@@ -54,13 +75,13 @@ class BranchResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('code')->searchable()->sortable(),
-                TextColumn::make('name')->searchable()->sortable(),
-                TextColumn::make('jenis')->badge(),
-                TextColumn::make('pic_name')->label('PIC'),
-                TextColumn::make('warehouse.name')->label('Warehouse')->sortable(),
-                TextColumn::make('phone'),
-                IconColumn::make('is_active')->boolean(),
+                TextColumn::make('code')->label(__('branches.fields.code'))->searchable()->sortable(),
+                TextColumn::make('name')->label(__('branches.fields.name'))->searchable()->sortable(),
+                TextColumn::make('jenis')->label(__('branches.fields.jenis'))->badge(),
+                TextColumn::make('pic_name')->label(__('branches.fields.pic_name')),
+                TextColumn::make('warehouse.name')->label(__('branches.fields.warehouse'))->sortable(),
+                TextColumn::make('phone')->label(__('branches.fields.phone')),
+                IconColumn::make('is_active')->label(__('branches.fields.is_active'))->boolean(),
             ])
             ->filters([
                 TrashedFilter::make(),

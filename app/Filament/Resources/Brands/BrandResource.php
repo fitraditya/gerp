@@ -32,15 +32,33 @@ class BrandResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Master Data';
+    public static function getNavigationGroup(): ?string
+    {
+        return __('nav.master_data');
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return __('brands.nav_label');
+    }
+
+    public static function getModelLabel(): string
+    {
+        return __('brands.singular');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('brands.plural');
+    }
 
     public static function form(Schema $schema): Schema
     {
         return $schema
             ->components([
-                TextInput::make('name')->required()->maxLength(255),
-                Textarea::make('description')->columnSpanFull(),
-                Toggle::make('is_active')->default(true),
+                TextInput::make('name')->label(__('brands.fields.name'))->required()->maxLength(255),
+                Textarea::make('description')->label(__('brands.fields.description'))->columnSpanFull(),
+                Toggle::make('is_active')->label(__('brands.fields.is_active'))->default(true),
             ]);
     }
 
@@ -48,8 +66,8 @@ class BrandResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('name')->searchable()->sortable(),
-                IconColumn::make('is_active')->boolean(),
+                TextColumn::make('name')->label(__('brands.fields.name'))->searchable()->sortable(),
+                IconColumn::make('is_active')->label(__('brands.fields.is_active'))->boolean(),
             ])
             ->filters([
                 TrashedFilter::make(),

@@ -617,6 +617,18 @@ Routes live in `routes/web.php` under `/exports/*`, deliberately **without** the
 
 **CSV injection (OWASP):** `CsvExportService` prefixes a neutralizing `'` on any cell starting with `=`, `+`, `-`, `@`, tab, or CR — product names, cashier names, and other user-supplied text all flow into these exports, and any of those could otherwise open as a live formula in Excel/Sheets.
 
+#### Internationalization — English / Bahasa Indonesia (2026-08-02, ERP-gap follow-up — post-4-phase addition)
+
+The Filament panel supports English and Indonesian. Locale is stored in `session('locale')`, read/applied by `App\Http\Middleware\SetLocale` (registered right after `StartSession` in `DashboardPanelProvider`), and switched via a `GET /locale/{locale}` route (`routes/web.php`) that just writes the session key and redirects back. The panel's user menu (`DashboardPanelProvider::userMenuItems()`) links to that route for `en`/`id`.
+
+**Convention: one lang file per Filament Resource/Page/Widget group, keyed by module, not one giant shared file** — mirrors the pre-existing `lang/{locale}/dashboard.php` and `lang/{locale}/financial_reports.php` pattern. Each Resource has `lang/en/{module}.php` + `lang/id/{module}.php` (e.g. `products.php`, `orders.php`, `purchase_orders.php`) holding `nav_label`/`singular`/`plural` plus a `fields` sub-array and, where relevant, per-action sub-arrays (`receive_stock`, `verify`, `return`, etc.) for schema field labels, helper text, and `Notification::make()->title()` strings. `lang/en/nav.php` + `lang/id/nav.php` hold the three shared navigation group names (Master Data/Finance/Inventory); `lang/en/widgets.php` + `lang/id/widgets.php` hold the three dashboard widget blade strings.
+
+**Every Resource overrides `getNavigationGroup()`/`getNavigationLabel()`/`getModelLabel()`/`getPluralModelLabel()` as methods, not the `protected static ?string $navigationGroup/$modelLabel` properties** — a static property is fixed at class-definition time and can't react to the per-request session locale; a method that calls `__()` at call time can. This replaced the old plain-string `$navigationGroup = 'Master Data'` pattern across all 15 Resources. Every form field, table column, filter option, and custom-Action label/notification also went from a bare string (or Filament's auto-derived `Str::headline($attribute)` label) to an explicit `->label(__('module.fields.x'))` call — Filament never auto-translates an attribute-derived label, so leaving it bare would always render English regardless of locale.
+
+Terminology deliberately reuses established Indonesian retail/mosque-store loanwords already present in code and `dashboard.php`/`financial_reports.php` rather than inventing new ones: Gerai (branch/outlet), Gudang (warehouse), Kas (cash), Retur (return), Diskon (discount), Setoran Kas (remittance) and Stock Opname (inventory audit) are kept identical in both locales since they're already the domain-standard bilingual terms.
+
+**Scope: Filament admin UI only** (nav/forms/tables/actions/notifications) — Service-layer `\RuntimeException` messages (surfaced verbatim via `Notification::make()->title($e->getMessage())` in every custom Action's `catch` block) and the POS/API JSON error bodies are intentionally untranslated in this pass.
+
 ### APIs
 
 All POS-facing endpoints are versioned under `/api/v1`, authenticated via Sanctum bearer token issued per device/branch login. Admin-only actions (product/warehouse setup, expense entry, remittance verification) are Filament-only and not exposed as public API.

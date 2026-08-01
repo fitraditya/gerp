@@ -33,7 +33,25 @@ class PurchaseOrderResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Inventory';
+    public static function getNavigationGroup(): ?string
+    {
+        return __('nav.inventory');
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return __('purchase_orders.nav_label');
+    }
+
+    public static function getModelLabel(): string
+    {
+        return __('purchase_orders.singular');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('purchase_orders.plural');
+    }
 
     public static function canCreate(): bool
     {
@@ -54,24 +72,24 @@ class PurchaseOrderResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('po_number')->searchable(),
-                TextColumn::make('supplier.name')->label('Supplier')->searchable(),
-                TextColumn::make('warehouse.name')->label('Warehouse'),
-                TextColumn::make('status')->badge(),
-                TextColumn::make('total')->money('IDR')->label('Ordered Value'),
-                TextColumn::make('received_total')->money('IDR')->label('Received Value'),
-                TextColumn::make('balance_due')->money('IDR')->label('Balance Due'),
-                TextColumn::make('ordered_at')->dateTime()->sortable(),
-                TextColumn::make('received_at')->dateTime()->sortable(),
+                TextColumn::make('po_number')->label(__('purchase_orders.fields.po_number'))->searchable(),
+                TextColumn::make('supplier.name')->label(__('purchase_orders.fields.supplier'))->searchable(),
+                TextColumn::make('warehouse.name')->label(__('purchase_orders.fields.warehouse')),
+                TextColumn::make('status')->label(__('purchase_orders.fields.status'))->badge(),
+                TextColumn::make('total')->money('IDR')->label(__('purchase_orders.fields.total')),
+                TextColumn::make('received_total')->money('IDR')->label(__('purchase_orders.fields.received_total')),
+                TextColumn::make('balance_due')->money('IDR')->label(__('purchase_orders.fields.balance_due')),
+                TextColumn::make('ordered_at')->label(__('purchase_orders.fields.ordered_at'))->dateTime()->sortable(),
+                TextColumn::make('received_at')->label(__('purchase_orders.fields.received_at'))->dateTime()->sortable(),
             ])
             ->defaultSort('ordered_at', 'desc')
             ->filters([
-                SelectFilter::make('warehouse_id')->label('Warehouse')->relationship('warehouse', 'name'),
+                SelectFilter::make('warehouse_id')->label(__('purchase_orders.fields.warehouse'))->relationship('warehouse', 'name'),
                 SelectFilter::make('status')->options([
-                    'ordered' => 'Ordered',
-                    'partially_received' => 'Partially Received',
-                    'received' => 'Received',
-                    'cancelled' => 'Cancelled',
+                    'ordered' => __('purchase_orders.fields.status_ordered'),
+                    'partially_received' => __('purchase_orders.fields.status_partially_received'),
+                    'received' => __('purchase_orders.fields.status_received'),
+                    'cancelled' => __('purchase_orders.fields.status_cancelled'),
                 ]),
             ])
             ->recordActions([
@@ -88,21 +106,21 @@ class PurchaseOrderResource extends Resource
     private static function createPurchaseOrderAction(): Action
     {
         return Action::make('createPurchaseOrder')
-            ->label('New Purchase Order')
+            ->label(__('purchase_orders.create.action'))
             ->visible(fn () => auth()->user()?->hasAnyRole(['Admin', 'Manager']))
             ->schema([
-                Select::make('supplier_id')->label('Supplier')->options(Supplier::active()->pluck('name', 'id'))->searchable()->required(),
-                Select::make('warehouse_id')->label('Warehouse')->options(Warehouse::query()->pluck('name', 'id'))->searchable()->required(),
+                Select::make('supplier_id')->label(__('purchase_orders.fields.supplier'))->options(Supplier::active()->pluck('name', 'id'))->searchable()->required(),
+                Select::make('warehouse_id')->label(__('purchase_orders.fields.warehouse'))->options(Warehouse::query()->pluck('name', 'id'))->searchable()->required(),
                 Repeater::make('items')
                     ->schema([
-                        Select::make('product_id')->label('Product')->options(Product::query()->pluck('name', 'id'))->searchable()->required(),
-                        TextInput::make('quantity')->numeric()->minValue(1)->required(),
-                        TextInput::make('unit_cost')->numeric()->minValue(0)->prefix('Rp')->required(),
+                        Select::make('product_id')->label(__('purchase_orders.fields.product'))->options(Product::query()->pluck('name', 'id'))->searchable()->required(),
+                        TextInput::make('quantity')->label(__('purchase_orders.fields.quantity'))->numeric()->minValue(1)->required(),
+                        TextInput::make('unit_cost')->label(__('purchase_orders.fields.unit_cost'))->numeric()->minValue(0)->prefix('Rp')->required(),
                     ])
                     ->columns(3)
                     ->minItems(1)
                     ->required(),
-                Textarea::make('notes')->columnSpanFull(),
+                Textarea::make('notes')->label(__('purchase_orders.fields.notes'))->columnSpanFull(),
             ])
             ->action(function (array $data) {
                 try {
@@ -113,7 +131,7 @@ class PurchaseOrderResource extends Resource
                         auth()->id(),
                         $data['notes'] ?? null,
                     );
-                    Notification::make()->title('Purchase order created')->success()->send();
+                    Notification::make()->title(__('purchase_orders.create.notification'))->success()->send();
                 } catch (\RuntimeException $e) {
                     Notification::make()->title($e->getMessage())->danger()->send();
                 }
@@ -123,18 +141,18 @@ class PurchaseOrderResource extends Resource
     private static function receiveAction(): Action
     {
         return Action::make('receive')
-            ->label('Receive')
+            ->label(__('purchase_orders.receive.action'))
             ->visible(fn (PurchaseOrder $record) => auth()->user()?->hasAnyRole(['Admin', 'Manager'])
                 && in_array($record->status, ['ordered', 'partially_received'], true))
             ->schema([
                 Repeater::make('items')
                     ->schema([
                         Select::make('product_id')
-                            ->label('Product')
+                            ->label(__('purchase_orders.fields.product'))
                             ->options(fn (PurchaseOrder $record) => collect($record->items)
                                 ->mapWithKeys(fn ($line) => [$line['product_id'] => Product::find($line['product_id'])?->name.' ('.($line['quantity_ordered'] - $line['quantity_received']).' outstanding)']))
                             ->required(),
-                        TextInput::make('quantity')->numeric()->minValue(1)->required(),
+                        TextInput::make('quantity')->label(__('purchase_orders.fields.quantity'))->numeric()->minValue(1)->required(),
                     ])
                     ->columns(2)
                     ->minItems(1)
@@ -143,7 +161,7 @@ class PurchaseOrderResource extends Resource
             ->action(function (PurchaseOrder $record, array $data) {
                 try {
                     app(PurchaseOrderService::class)->receive($record, $data['items'], auth()->id());
-                    Notification::make()->title('Stock received against purchase order')->success()->send();
+                    Notification::make()->title(__('purchase_orders.receive.notification'))->success()->send();
                 } catch (\RuntimeException $e) {
                     Notification::make()->title($e->getMessage())->danger()->send();
                 }
@@ -153,16 +171,16 @@ class PurchaseOrderResource extends Resource
     private static function recordPaymentAction(): Action
     {
         return Action::make('recordPayment')
-            ->label('Record Payment')
+            ->label(__('purchase_orders.record_payment.action'))
             ->visible(fn (PurchaseOrder $record) => auth()->user()?->hasAnyRole(['Admin', 'Manager'])
                 && (float) $record->balance_due > 0)
             ->schema([
                 Select::make('cash_account_code')
-                    ->label('Paid From')
+                    ->label(__('purchase_orders.record_payment.cash_account'))
                     ->options(CashAccount::active()->cash()->pluck('name', 'code'))
                     ->searchable()
                     ->required(),
-                TextInput::make('amount')->numeric()->minValue(0.01)->prefix('Rp')->required(),
+                TextInput::make('amount')->label(__('purchase_orders.record_payment.amount'))->numeric()->minValue(0.01)->prefix('Rp')->required(),
             ])
             ->action(function (PurchaseOrder $record, array $data) {
                 try {
@@ -172,7 +190,7 @@ class PurchaseOrderResource extends Resource
                         (float) $data['amount'],
                         auth()->id(),
                     );
-                    Notification::make()->title('Payment recorded')->success()->send();
+                    Notification::make()->title(__('purchase_orders.record_payment.notification'))->success()->send();
                 } catch (\RuntimeException $e) {
                     Notification::make()->title($e->getMessage())->danger()->send();
                 }
@@ -182,14 +200,14 @@ class PurchaseOrderResource extends Resource
     private static function cancelAction(): Action
     {
         return Action::make('cancel')
-            ->label('Cancel')
+            ->label(__('purchase_orders.cancel.action'))
             ->requiresConfirmation()
             ->visible(fn (PurchaseOrder $record) => auth()->user()?->hasAnyRole(['Admin', 'Manager'])
                 && $record->status === 'ordered')
             ->action(function (PurchaseOrder $record) {
                 try {
                     app(PurchaseOrderService::class)->cancel($record);
-                    Notification::make()->title('Purchase order cancelled')->success()->send();
+                    Notification::make()->title(__('purchase_orders.cancel.notification'))->success()->send();
                 } catch (\RuntimeException $e) {
                     Notification::make()->title($e->getMessage())->danger()->send();
                 }

@@ -34,22 +34,44 @@ class DiscountResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
+    public static function getNavigationGroup(): ?string
+    {
+        return __('nav.finance');
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return __('discounts.nav_label');
+    }
+
+    public static function getModelLabel(): string
+    {
+        return __('discounts.singular');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('discounts.plural');
+    }
 
     public static function form(Schema $schema): Schema
     {
         return $schema
             ->components([
-                TextInput::make('code')->required()->unique(ignoreRecord: true)->maxLength(255),
-                TextInput::make('name')->required()->maxLength(255),
-                Select::make('type')->options(['percentage' => 'Percentage', 'fixed' => 'Fixed'])->default('percentage')->required(),
-                TextInput::make('value')->required()->numeric(),
-                TextInput::make('min_purchase')->numeric()->prefix('Rp'),
-                TextInput::make('max_usage')->numeric()->helperText('Leave empty for unlimited.'),
-                DateTimePicker::make('valid_from'),
-                DateTimePicker::make('valid_until'),
-                Textarea::make('description')->columnSpanFull(),
-                Toggle::make('is_active')->default(true),
+                TextInput::make('code')->label(__('discounts.fields.code'))->required()->unique(ignoreRecord: true)->maxLength(255),
+                TextInput::make('name')->label(__('discounts.fields.name'))->required()->maxLength(255),
+                Select::make('type')
+                    ->label(__('discounts.fields.type'))
+                    ->options(['percentage' => __('discounts.fields.type_percentage'), 'fixed' => __('discounts.fields.type_fixed')])
+                    ->default('percentage')
+                    ->required(),
+                TextInput::make('value')->label(__('discounts.fields.value'))->required()->numeric(),
+                TextInput::make('min_purchase')->label(__('discounts.fields.min_purchase'))->numeric()->prefix('Rp'),
+                TextInput::make('max_usage')->label(__('discounts.fields.max_usage'))->numeric()->helperText(__('discounts.fields.max_usage_help')),
+                DateTimePicker::make('valid_from')->label(__('discounts.fields.valid_from')),
+                DateTimePicker::make('valid_until')->label(__('discounts.fields.valid_until')),
+                Textarea::make('description')->label(__('discounts.fields.description'))->columnSpanFull(),
+                Toggle::make('is_active')->label(__('discounts.fields.is_active'))->default(true),
             ]);
     }
 
@@ -57,13 +79,13 @@ class DiscountResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('code')->searchable()->sortable(),
-                TextColumn::make('name')->searchable(),
-                TextColumn::make('type')->badge(),
-                TextColumn::make('value'),
-                TextColumn::make('usage_count')->label('Used'),
-                TextColumn::make('max_usage')->label('Max'),
-                IconColumn::make('is_active')->boolean(),
+                TextColumn::make('code')->label(__('discounts.fields.code'))->searchable()->sortable(),
+                TextColumn::make('name')->label(__('discounts.fields.name'))->searchable(),
+                TextColumn::make('type')->label(__('discounts.fields.type'))->badge(),
+                TextColumn::make('value')->label(__('discounts.fields.value')),
+                TextColumn::make('usage_count')->label(__('discounts.fields.usage_count')),
+                TextColumn::make('max_usage')->label(__('discounts.fields.max_usage_short')),
+                IconColumn::make('is_active')->label(__('discounts.fields.is_active'))->boolean(),
             ])
             ->filters([
                 TrashedFilter::make(),

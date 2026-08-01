@@ -27,34 +27,53 @@ class UserResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Master Data';
+    public static function getNavigationGroup(): ?string
+    {
+        return __('nav.master_data');
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return __('users.nav_label');
+    }
+
+    public static function getModelLabel(): string
+    {
+        return __('users.singular');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('users.plural');
+    }
 
     public static function form(Schema $schema): Schema
     {
         return $schema
             ->components([
-                TextInput::make('name')->required()->maxLength(255),
-                TextInput::make('email')->email()->required()->unique(ignoreRecord: true)->maxLength(255),
-                TextInput::make('phone')->tel()->maxLength(255),
+                TextInput::make('name')->label(__('users.fields.name'))->required()->maxLength(255),
+                TextInput::make('email')->label(__('users.fields.email'))->email()->required()->unique(ignoreRecord: true)->maxLength(255),
+                TextInput::make('phone')->label(__('users.fields.phone'))->tel()->maxLength(255),
                 TextInput::make('password')
+                    ->label(__('users.fields.password'))
                     ->password()
                     ->revealable()
                     ->dehydrateStateUsing(fn (string $state) => Hash::make($state))
                     ->dehydrated(fn (?string $state) => filled($state))
                     ->required(fn (string $operation) => $operation === 'create'),
                 Select::make('roles')
-                    ->label('Role')
+                    ->label(__('users.fields.role'))
                     ->relationship('roles', 'name')
                     ->options(fn () => Role::pluck('name', 'id'))
                     ->required()
                     ->searchable(),
                 Select::make('warehouse_id')
-                    ->label('Warehouse (branch assignment)')
+                    ->label(__('users.fields.warehouse'))
                     ->relationship('warehouse', 'name')
                     ->searchable()
                     ->preload()
-                    ->helperText('Leave empty for Admin/Manager (they are not branch-locked).'),
-                Toggle::make('is_active')->default(true),
+                    ->helperText(__('users.fields.warehouse_help')),
+                Toggle::make('is_active')->label(__('users.fields.is_active'))->default(true),
             ]);
     }
 
@@ -62,11 +81,11 @@ class UserResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('name')->searchable()->sortable(),
-                TextColumn::make('email')->searchable()->sortable(),
-                TextColumn::make('roles.name')->label('Role')->badge(),
-                TextColumn::make('warehouse.name')->label('Warehouse'),
-                IconColumn::make('is_active')->boolean(),
+                TextColumn::make('name')->label(__('users.fields.name'))->searchable()->sortable(),
+                TextColumn::make('email')->label(__('users.fields.email'))->searchable()->sortable(),
+                TextColumn::make('roles.name')->label(__('users.fields.role'))->badge(),
+                TextColumn::make('warehouse.name')->label(__('users.fields.warehouse')),
+                IconColumn::make('is_active')->label(__('users.fields.is_active'))->boolean(),
             ])
             ->filters([
                 //

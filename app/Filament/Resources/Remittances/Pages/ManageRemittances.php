@@ -18,7 +18,7 @@ class ManageRemittances extends ManageRecords
     {
         return [
             CreateAction::make()
-                ->label('Submit Remittance')
+                ->label(__('remittances.submit'))
                 ->using(function (array $data) {
                     $central = Warehouse::where('type', 'central')->firstOrFail();
 

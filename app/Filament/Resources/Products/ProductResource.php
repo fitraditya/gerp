@@ -34,25 +34,43 @@ class ProductResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Master Data';
+    public static function getNavigationGroup(): ?string
+    {
+        return __('nav.master_data');
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return __('products.nav_label');
+    }
+
+    public static function getModelLabel(): string
+    {
+        return __('products.singular');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('products.plural');
+    }
 
     public static function form(Schema $schema): Schema
     {
         return $schema
             ->components([
-                TextInput::make('sku')->required()->unique(ignoreRecord: true)->maxLength(255),
-                TextInput::make('name')->required()->maxLength(255),
-                Select::make('brand_id')->label('Brand')->relationship('brand', 'name')->searchable()->preload(),
-                TextInput::make('price')->required()->numeric()->prefix('Rp'),
+                TextInput::make('sku')->label(__('products.fields.sku'))->required()->unique(ignoreRecord: true)->maxLength(255),
+                TextInput::make('name')->label(__('products.fields.name'))->required()->maxLength(255),
+                Select::make('brand_id')->label(__('products.fields.brand'))->relationship('brand', 'name')->searchable()->preload(),
+                TextInput::make('price')->label(__('products.fields.price'))->required()->numeric()->prefix('Rp'),
                 TextInput::make('cost_price')
-                    ->label('Cost Price')
-                    ->helperText('Acquisition cost per unit. Leave blank for donated/free stock — treated as Rp0 in margin reports.')
+                    ->label(__('products.fields.cost_price'))
+                    ->helperText(__('products.fields.cost_price_help'))
                     ->numeric()
                     ->minValue(0)
                     ->prefix('Rp'),
-                TextInput::make('tier')->label('Tier')->maxLength(255),
-                Textarea::make('description')->columnSpanFull(),
-                Toggle::make('is_active')->default(true),
+                TextInput::make('tier')->label(__('products.fields.tier'))->maxLength(255),
+                Textarea::make('description')->label(__('products.fields.description'))->columnSpanFull(),
+                Toggle::make('is_active')->label(__('products.fields.is_active'))->default(true),
             ]);
     }
 
@@ -60,16 +78,16 @@ class ProductResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('sku')->searchable()->sortable(),
-                TextColumn::make('name')->searchable()->sortable(),
-                TextColumn::make('brand.name')->label('Brand')->sortable(),
-                TextColumn::make('price')->money('IDR')->sortable(),
-                TextColumn::make('cost_price')->label('Cost Price')->money('IDR')->sortable()->toggleable(),
-                TextColumn::make('tier'),
-                IconColumn::make('is_active')->boolean(),
+                TextColumn::make('sku')->label(__('products.fields.sku'))->searchable()->sortable(),
+                TextColumn::make('name')->label(__('products.fields.name'))->searchable()->sortable(),
+                TextColumn::make('brand.name')->label(__('products.fields.brand'))->sortable(),
+                TextColumn::make('price')->label(__('products.fields.price'))->money('IDR')->sortable(),
+                TextColumn::make('cost_price')->label(__('products.fields.cost_price'))->money('IDR')->sortable()->toggleable(),
+                TextColumn::make('tier')->label(__('products.fields.tier')),
+                IconColumn::make('is_active')->label(__('products.fields.is_active'))->boolean(),
             ])
             ->filters([
-                SelectFilter::make('brand_id')->label('Brand')->relationship('brand', 'name'),
+                SelectFilter::make('brand_id')->label(__('products.fields.brand'))->relationship('brand', 'name'),
                 TrashedFilter::make(),
             ])
             ->recordActions([

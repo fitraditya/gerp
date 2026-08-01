@@ -19,7 +19,25 @@ class CashAccountResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Finance';
+    public static function getNavigationGroup(): ?string
+    {
+        return __('nav.finance');
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return __('cash_accounts.nav_label');
+    }
+
+    public static function getModelLabel(): string
+    {
+        return __('cash_accounts.singular');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('cash_accounts.plural');
+    }
 
     /**
      * Read-only per RFC Module Breakdown ("CashAccountResource (read)") — balances
@@ -39,16 +57,16 @@ class CashAccountResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('code')->searchable()->sortable(),
-                TextColumn::make('name')->searchable(),
-                TextColumn::make('holder_name')->label('Holder')->searchable(),
-                TextColumn::make('branch.name')->label('Branch'),
-                TextColumn::make('account_type')->badge(),
-                IconColumn::make('counts_as_cash')->label('Cash?')->boolean(),
-                TextColumn::make('balance')->money('IDR')->sortable(),
+                TextColumn::make('code')->label(__('cash_accounts.fields.code'))->searchable()->sortable(),
+                TextColumn::make('name')->label(__('cash_accounts.fields.name'))->searchable(),
+                TextColumn::make('holder_name')->label(__('cash_accounts.fields.holder_name'))->searchable(),
+                TextColumn::make('branch.name')->label(__('cash_accounts.fields.branch')),
+                TextColumn::make('account_type')->label(__('cash_accounts.fields.account_type'))->badge(),
+                IconColumn::make('counts_as_cash')->label(__('cash_accounts.fields.counts_as_cash'))->boolean(),
+                TextColumn::make('balance')->label(__('cash_accounts.fields.balance'))->money('IDR')->sortable(),
             ])
             ->filters([
-                SelectFilter::make('branch_id')->label('Branch')->relationship('branch', 'name'),
+                SelectFilter::make('branch_id')->label(__('cash_accounts.fields.branch'))->relationship('branch', 'name'),
             ])
             ->recordActions([])
             ->toolbarActions([]);

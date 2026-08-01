@@ -26,7 +26,25 @@ class InventoryResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Inventory';
+    public static function getNavigationGroup(): ?string
+    {
+        return __('nav.inventory');
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return __('inventories.nav_label');
+    }
+
+    public static function getModelLabel(): string
+    {
+        return __('inventories.singular');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('inventories.plural');
+    }
 
     /** Mutations go exclusively through InventoryService (receiveStock/transfer), never a raw edit form. */
     public static function canCreate(): bool
@@ -43,18 +61,19 @@ class InventoryResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('product.sku')->label('SKU')->searchable(),
-                TextColumn::make('product.name')->label('Product')->searchable(),
-                TextColumn::make('warehouse.name')->label('Warehouse')->sortable(),
+                TextColumn::make('product.sku')->label(__('inventories.fields.sku'))->searchable(),
+                TextColumn::make('product.name')->label(__('inventories.fields.product'))->searchable(),
+                TextColumn::make('warehouse.name')->label(__('inventories.fields.warehouse'))->sortable(),
                 TextColumn::make('quantity')
+                    ->label(__('inventories.fields.quantity'))
                     ->sortable()
                     ->color(fn (Inventory $record) => $record->quantity < 0 ? 'danger' : null)
                     ->weight(fn (Inventory $record) => $record->quantity < 0 ? 'bold' : null),
-                TextColumn::make('quantity_reserved')->label('Reserved'),
-                TextColumn::make('available')->label('Available')->state(fn (Inventory $record) => $record->quantity - $record->quantity_reserved),
+                TextColumn::make('quantity_reserved')->label(__('inventories.fields.reserved')),
+                TextColumn::make('available')->label(__('inventories.fields.available'))->state(fn (Inventory $record) => $record->quantity - $record->quantity_reserved),
             ])
             ->filters([
-                SelectFilter::make('warehouse_id')->label('Warehouse')->relationship('warehouse', 'name'),
+                SelectFilter::make('warehouse_id')->label(__('inventories.fields.warehouse'))->relationship('warehouse', 'name'),
             ])
             ->recordActions([
                 self::transferAction(),
@@ -63,7 +82,7 @@ class InventoryResource extends Resource
             ->headerActions([
                 self::receiveStockAction(),
                 Action::make('exportCsv')
-                    ->label('Export CSV')
+                    ->label(__('inventories.export_csv'))
                     ->url(fn () => route('exports.inventory'))
                     ->openUrlInNewTab(),
             ]);
@@ -72,15 +91,15 @@ class InventoryResource extends Resource
     private static function receiveStockAction(): Action
     {
         return Action::make('receiveStock')
-            ->label('Receive Stock')
+            ->label(__('inventories.receive_stock.action'))
             ->visible(fn () => auth()->user()?->hasAnyRole(['Admin', 'Manager']))
             ->schema([
-                Select::make('product_id')->label('Product')->options(Product::query()->pluck('name', 'id'))->searchable()->required(),
-                Select::make('warehouse_id')->label('Warehouse')->options(Warehouse::query()->pluck('name', 'id'))->searchable()->required(),
-                TextInput::make('quantity')->numeric()->minValue(1)->required(),
+                Select::make('product_id')->label(__('inventories.fields.product'))->options(Product::query()->pluck('name', 'id'))->searchable()->required(),
+                Select::make('warehouse_id')->label(__('inventories.fields.warehouse'))->options(Warehouse::query()->pluck('name', 'id'))->searchable()->required(),
+                TextInput::make('quantity')->label(__('inventories.receive_stock.quantity'))->numeric()->minValue(1)->required(),
                 Select::make('funding_source_code')
-                    ->label('Paid From')
-                    ->helperText('Optional. Only needed if this stock was purchased (not donated) and you want it posted as a real inventory asset against the account that paid for it.')
+                    ->label(__('inventories.receive_stock.funding_source'))
+                    ->helperText(__('inventories.receive_stock.funding_source_help'))
                     ->options(CashAccount::active()->cash()->pluck('name', 'code'))
                     ->searchable(),
             ])
@@ -94,22 +113,22 @@ class InventoryResource extends Resource
                     fundingSource: $data['funding_source_code'] ?? null,
                 );
 
-                Notification::make()->title('Stock received')->success()->send();
+                Notification::make()->title(__('inventories.receive_stock.notification'))->success()->send();
             });
     }
 
     private static function transferAction(): Action
     {
         return Action::make('transfer')
-            ->label('Transfer')
+            ->label(__('inventories.transfer.action'))
             ->visible(fn () => auth()->user()?->hasAnyRole(['Admin', 'Manager']))
             ->schema([
                 Select::make('to_warehouse_id')
-                    ->label('Destination Warehouse')
+                    ->label(__('inventories.transfer.destination_warehouse'))
                     ->options(fn (Inventory $record) => Warehouse::query()->where('id', '!=', $record->warehouse_id)->pluck('name', 'id'))
                     ->searchable()
                     ->required(),
-                TextInput::make('quantity')->numeric()->minValue(1)->required(),
+                TextInput::make('quantity')->label(__('inventories.transfer.quantity'))->numeric()->minValue(1)->required(),
             ])
             ->action(function (Inventory $record, array $data) {
                 try {
@@ -120,7 +139,7 @@ class InventoryResource extends Resource
                         (int) $data['quantity'],
                         auth()->id(),
                     );
-                    Notification::make()->title('Transfer completed')->success()->send();
+                    Notification::make()->title(__('inventories.transfer.notification'))->success()->send();
                 } catch (\RuntimeException $e) {
                     Notification::make()->title($e->getMessage())->danger()->send();
                 }

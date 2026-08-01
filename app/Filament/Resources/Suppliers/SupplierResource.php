@@ -34,18 +34,36 @@ class SupplierResource extends Resource
     // this checkout to confirm other Heroicon enum cases exist).
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Master Data';
+    public static function getNavigationGroup(): ?string
+    {
+        return __('nav.master_data');
+    }
+
+    public static function getNavigationLabel(): string
+    {
+        return __('suppliers.nav_label');
+    }
+
+    public static function getModelLabel(): string
+    {
+        return __('suppliers.singular');
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return __('suppliers.plural');
+    }
 
     public static function form(Schema $schema): Schema
     {
         return $schema
             ->components([
-                TextInput::make('name')->required()->maxLength(255),
-                TextInput::make('contact_person')->maxLength(255),
-                TextInput::make('phone')->tel()->maxLength(50),
-                TextInput::make('email')->email()->maxLength(255),
-                Textarea::make('address')->columnSpanFull(),
-                Toggle::make('is_active')->default(true),
+                TextInput::make('name')->label(__('suppliers.fields.name'))->required()->maxLength(255),
+                TextInput::make('contact_person')->label(__('suppliers.fields.contact_person'))->maxLength(255),
+                TextInput::make('phone')->label(__('suppliers.fields.phone'))->tel()->maxLength(50),
+                TextInput::make('email')->label(__('suppliers.fields.email'))->email()->maxLength(255),
+                Textarea::make('address')->label(__('suppliers.fields.address'))->columnSpanFull(),
+                Toggle::make('is_active')->label(__('suppliers.fields.is_active'))->default(true),
             ]);
     }
 
@@ -53,11 +71,11 @@ class SupplierResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('name')->searchable()->sortable(),
-                TextColumn::make('contact_person')->searchable(),
-                TextColumn::make('phone'),
-                TextColumn::make('email'),
-                IconColumn::make('is_active')->boolean(),
+                TextColumn::make('name')->label(__('suppliers.fields.name'))->searchable()->sortable(),
+                TextColumn::make('contact_person')->label(__('suppliers.fields.contact_person'))->searchable(),
+                TextColumn::make('phone')->label(__('suppliers.fields.phone')),
+                TextColumn::make('email')->label(__('suppliers.fields.email')),
+                IconColumn::make('is_active')->label(__('suppliers.fields.is_active'))->boolean(),
             ])
             ->filters([
                 TrashedFilter::make(),
