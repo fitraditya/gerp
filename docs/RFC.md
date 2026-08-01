@@ -127,6 +127,7 @@ graph TB
 | Dashboard | Filament Widgets (`InventoryHealthWidget`, `CashPositionWidget`, `SalesTrendWidget`) scoped by role | `GET /api/v1/dashboard/summary` | `DashboardService::summarize()` |
 | Financial Reports (Chart of Accounts) | `FinancialReports` page (Admin/Manager only) — trial balance + period P&L | — | `LedgerReportService::trialBalance()`, `LedgerReportService::profitAndLoss()` |
 | Purchasing (Supplier + PO) | `SupplierResource`, `PurchaseOrderResource` (+ custom "Receive"/"Record Payment"/"Cancel" actions) | — | `PurchaseOrderService::create()`, `PurchaseOrderService::receive()`, `PurchaseOrderService::recordPayment()`, `PurchaseOrderService::cancel()` |
+| Customer Returns | `SalesReturnResource` (read-only log) + `OrderResource`'s "Process Return" record action | — | `SalesReturnService::process()` |
 | Auth | Filament login (session) | `POST /api/v1/auth/login` (Sanctum token issuance) | — |
 
 #### Roles & Permission Matrix
@@ -146,6 +147,7 @@ graph TB
 | User & role management | ✅ | ❌ | ❌ | ❌ |
 | Financial Reports (Trial Balance / P&L) | ✅ | ✅ | ❌ | ❌ |
 | Supplier & Purchase Order management | ✅ | ✅ | ❌ | ❌ |
+| Process customer return | ✅ | ✅ | ✅ | ❌ |
 
 Implemented via Filament Shield policies + a `branch_id` scope on Supervisor/Staff queries (global scope applied when `role != ADMIN/MANAGER`).
 
@@ -513,6 +515,21 @@ erDiagram
     SUPPLIERS ||--o{ PURCHASE_ORDERS : "supplies"
     WAREHOUSES ||--o{ PURCHASE_ORDERS : "destination"
 
+    SALES_RETURNS {
+        uuid id PK "RFC addition (Phase 4 Returns follow-up)"
+        uuid order_id FK "the original sale"
+        uuid warehouse_id FK "copied from orders.warehouse_id — own column so WarehouseScope applies directly"
+        uuid created_by FK
+        text reason "min 5 chars, enforced in SalesReturnService"
+        json items "[{product_id, quantity, unit_price, refund_subtotal, unit_cost, cost_subtotal}] - snapshotted from the ORIGINAL order line, not current product price/cost"
+        decimal refund_amount "12,2"
+        decimal cogs_reversal "12,2"
+        enum refund_method "CASH, QRIS - defaults to the order's payment_method"
+        timestamp processed_at
+    }
+
+    SALES_ORDERS ||--o{ SALES_RETURNS : "returned_via"
+
     CASH_REMITTANCES {
         uuid id PK "RFC addition table, fields per PRD Story 5"
         uuid branch_id FK
@@ -550,6 +567,8 @@ Every `cash_transactions` row records exactly one balanced movement: `from_accou
 | Remit verify (Story 5) | `IN_TRANSIT` | `CENTRAL_TREASURY` | Confirmed cash lands in treasury. |
 | PO receive (Phase 3 Purchasing) | `ACCOUNTS_PAYABLE` | `INVENTORY_ASSET` | Goods received on credit; liability grows (see Chart of Accounts subsection below on why this is the correct from/to direction for a liability in this schema). |
 | PO payment (Phase 3 Purchasing) | chosen cash account | `ACCOUNTS_PAYABLE` | Cash decreases, liability shrinks. |
+| Customer return (Phase 4 Returns) | chosen cash account (drawer/`QRIS_CLEARING`) | `SALES_REVENUE` | Exact reversal of the original sale — cash leaves to refund the customer, revenue recognized shrinks back. |
+| Customer return COGS reversal (Phase 4 Returns) | `COGS_EXPENSE` | `INVENTORY_ASSET` | Exact reversal of the original sale's COGS posting — skipped when the sold line had no recorded cost. |
 
 **Why not a full `journal_entries` / `journal_lines` pair (traditional multi-line double-entry)?** Every event in this PRD is a simple two-party movement — nothing requires splitting one transaction across more than two accounts. A single table with `from_account_id`/`to_account_id`/`amount` gives the guarantee that matters most for reporting — every account's balance is fully derivable from the transaction log, and the sum entering an account always equals the sum leaving its counterparties — without the schema/query overhead of a header+lines model. If a future requirement needs one event to fan out across 3+ accounts, that's the trigger to migrate to `journal_entries`/`journal_lines`; nothing in the current PRD requires it. A trial balance report is just `SUM(amount) GROUP BY to_account_id` minus `SUM(amount) GROUP BY from_account_id`.
 
@@ -572,6 +591,20 @@ Two account types were fixed/added on top of the original seed data:
 Liability accrues against goods **received**, not the full ordered quantity — ordering 100 units doesn't create a debt until some of them physically arrive (`received_total` accrues per `receive()` call; `balance_due = received_total - amount_paid`). `receive()` also writes the PO line's negotiated `unit_cost` onto `Product.cost_price` ("last cost" costing — the simplest costing method that keeps Phase 1/2's COGS math using a real, current cost) before calling `InventoryService::receiveStock(..., fundingSource: 'ACCOUNTS_PAYABLE')`, reusing that method's existing ledger-posting logic rather than duplicating it.
 
 **Out of scope for this phase:** partial cancellation of a PO after some lines have been received (only an untouched `ordered` PO can be cancelled); per-supplier AP aging/sub-ledger (one flat `ACCOUNTS_PAYABLE` account, matching this codebase's existing "one account per concern" style rather than per-supplier rows); return-to-supplier / debit memos (Phase 4 is Returns, but scoped to customer returns per the original gap analysis — supplier returns would be a further follow-up if needed).
+
+#### Customer Returns (2026-08-01, ERP-gap follow-up, Phase 4 of 4 — final phase)
+
+**Role scope: Manager/Supervisor/Admin, not Staff** — matches Stock Opname (Story 3), not POS Checkout (Story 2). Staff has no Filament resource access at all (see RBAC.md), and the only entry point for returns is `OrderResource`'s "Process Return" record action — Staff can't reach it anyway since `OrderPolicy` already blocks them from viewing Orders. Granting the permission without a working channel would be dangling scope, so `SalesReturnPolicy` doesn't include Staff.
+
+`SalesReturnService::process()` reverses a completed `Order` using **that order line's own snapshotted `unit_price`/`unit_cost`** (from `orders.items`, set by `CheckoutService` — see Phase 1 notes), not the product's current price/cost_price. A return must refund what the customer actually paid and reverse the COGS actually recognized at sale time, regardless of any price change since.
+
+`sales_returns` doesn't mutate the original `Order` (which stays an immutable sales record, per `OrderResource`'s existing `canEdit() => false` convention) — instead, eligibility for a new return is computed by summing every prior `SalesReturn` against that order/product, so partial returns across multiple visits can't cumulatively exceed what was actually sold.
+
+Ledger-wise this is an exact reversal, reusing existing accounts (no new `cash_accounts` rows needed): `from:<drawer/QRIS_CLEARING> -> to:SALES_REVENUE` for the refund (opposite of `CheckoutService`'s sale posting), and `from:COGS_EXPENSE -> to:INVENTORY_ASSET` for the COGS reversal (opposite of the COGS posting), skipped when the original line had $0 cost.
+
+**Reporting impact:** `DashboardService::summary()` and `LedgerReportService::profitAndLoss()` both had to change to stay correct once returns exist — `orders.gross_profit`/`cogs_total` sums alone overstate revenue/margin for any period containing a return. `DashboardService` now separately sums `sales_returns` (`refund_amount`, `cogs_reversal`) within the period/warehouse and nets them out of `total_omzet_net`/`total_cogs`/`total_gross_profit`. `LedgerReportService::profitAndLoss()` changed from a one-directional `SUM(debit)`/`SUM(credit)` read per account to `SUM(increase-side) - SUM(decrease-side)`, since a return posts to the opposite column of the same accounts a sale uses (see Ledger Mechanics table above) — this was a real bug caught before shipping: the original one-directional version silently ignored return postings entirely.
+
+**Out of scope:** exchanges (return + new sale as one atomic flow — currently two separate operations); restocking fees; returns against multiple orders in one action; supplier returns (see Purchasing subsection above).
 
 ### APIs
 
@@ -707,6 +740,7 @@ Recommend a single-branch pilot running in parallel with the existing spreadshee
 | 2026-07-31 | ERP-gap analysis follow-up (Phase 1 of 4: COGS -> COA -> Purchasing -> Returns) | Added `products.cost_price`, `orders.cogs_total`/`gross_profit` for margin/profit reporting — see Database Model notes above. `ErpDashboard`'s COGS/Gross Profit tiles are gated to Admin/Manager (see RBAC.md Dashboard Widget Visibility) since cost data is more sensitive than revenue. Phase 2 (real Chart of Accounts) will add `INVENTORY_ASSET`/`COGS_EXPENSE` ledger postings that this phase deliberately left as reporting-only. |
 | 2026-08-01 | ERP-gap analysis follow-up (Phase 2 of 4) | Landed the Chart of Accounts follow-up flagged above — see Database Model "Chart of Accounts" subsection. New `FinancialReports` page (Trial Balance + P&L), Admin/Manager only. Next: Phase 3 (Supplier + PO), Phase 4 (Returns). |
 | 2026-08-01 | ERP-gap analysis follow-up (Phase 3 of 4) | Added `Supplier` + `PurchaseOrder` (Admin/Manager only, `PurchaseOrderResource`) — see Database Model "Purchasing / Accounts Payable" subsection. New `ACCOUNTS_PAYABLE` liability account. Next: Phase 4 (Returns). |
+| 2026-08-01 | ERP-gap analysis follow-up (Phase 4 of 4, final phase) | Added `SalesReturn` (`SalesReturnService`, same role set as POS Checkout) — see Database Model "Customer Returns" subsection. Fixed a real bug in the same pass: `LedgerReportService::profitAndLoss()`'s one-directional `SUM(debit)`/`SUM(credit)` read would have silently ignored return postings once they existed; changed to net both directions. `DashboardService` now nets returns out of period revenue/COGS/gross-profit. All 4 phases of the original ERP-gap analysis (COGS -> COA -> Purchasing -> Returns) are now complete; CRM/customer tracking remains explicitly out of scope per the original request. |
 | | | |
 
 ---

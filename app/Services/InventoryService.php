@@ -137,6 +137,25 @@ class InventoryService
     }
 
     /**
+     * Restock from a customer return (SalesReturnService). Deliberately separate from
+     * receiveStock(): a return doesn't buy new inventory value at the current
+     * product.cost_price — SalesReturnService reverses the ORIGINAL sale's snapshotted
+     * unit_cost instead, so no ledger posting happens here (caller does it).
+     */
+    public function restock(Product $product, int $warehouseId, int $qty, ?int $actorId = null, ?\DateTimeInterface $occurredAt = null, ?object $reference = null): Inventory
+    {
+        return DB::transaction(function () use ($product, $warehouseId, $qty, $actorId, $occurredAt, $reference) {
+            $inventory = $this->lockInventory($product->id, $warehouseId);
+            $inventory->quantity += $qty;
+            $inventory->save();
+
+            $this->logMovement($product->id, $warehouseId, 'RETURN', $qty, $reference, $actorId, $occurredAt);
+
+            return $inventory;
+        });
+    }
+
+    /**
      * @throws \RuntimeException if the destination warehouse is missing/inactive
      */
     public function transfer(Product $product, int $fromWarehouseId, int $toWarehouseId, int $qty, ?int $actorId = null, ?\DateTimeInterface $occurredAt = null): array

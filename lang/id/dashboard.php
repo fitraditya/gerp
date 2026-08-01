@@ -24,6 +24,8 @@ return [
         'total_sales_sub' => '(Gross)',
         'total_diskon' => 'Total Diskon',
         'total_diskon_sub' => 'Diskon / SP Mitra',
+        'total_returns' => 'Total Retur',
+        'total_returns_sub' => 'Dikembalikan ke Pelanggan',
         'total_omzet' => 'Total Omzet',
         'total_omzet_sub' => 'Net Sales',
         'biaya_pengembangan' => 'Biaya Pengembangan',

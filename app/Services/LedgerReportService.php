@@ -28,11 +28,13 @@ class LedgerReportService
     }
 
     /**
-     * Revenue and expense (fund pools + COGS_EXPENSE) recognized within the period.
-     * Per LedgerService::post()'s "from loses / to gains" mechanics: a sale posts
-     * from:SALES_REVENUE (so revenue lands in the `debit` column), an expense/COGS
-     * posts to:<expense account> (so expense lands in the `credit` column) — this
-     * is this schema's internal bookkeeping direction, not GAAP normal balance.
+     * Revenue and expense (fund pools + COGS_EXPENSE) recognized within the period, net
+     * of returns (Phase 4). Per LedgerService::post()'s "from loses / to gains"
+     * mechanics: a sale posts from:SALES_REVENUE/to:<expense account> (debit column);
+     * SalesReturnService posts the exact reverse (credit column) for both — so net
+     * revenue is SUM(debit)-SUM(credit) on revenue-type accounts, and net expense is
+     * SUM(credit)-SUM(debit) on expense-type accounts. This is this schema's internal
+     * bookkeeping direction, not GAAP normal balance.
      */
     public function profitAndLoss(\DateTimeInterface $periodStart, \DateTimeInterface $periodEnd, ?int $warehouseId = null): array
     {
@@ -43,9 +45,14 @@ class LedgerReportService
             ->whereBetween('created_at', [$periodStart, $periodEnd])
             ->when($warehouseId, fn ($q) => $q->where('warehouse_id', $warehouseId));
 
-        $revenue = (float) (clone $ledgerBase)->whereIn('account_code', $revenueCodes)->sum('debit');
-        $cogs = (float) (clone $ledgerBase)->where('account_code', 'COGS_EXPENSE')->sum('credit');
-        $totalExpenses = (float) (clone $ledgerBase)->whereIn('account_code', $expenseCodes)->sum('credit');
+        $netFor = fn ($codes, $increaseColumn, $decreaseColumn) => (float) (clone $ledgerBase)
+            ->whereIn('account_code', $codes)
+            ->selectRaw("COALESCE(SUM({$increaseColumn}),0) - COALESCE(SUM({$decreaseColumn}),0) as net")
+            ->value('net');
+
+        $revenue = $netFor($revenueCodes, 'debit', 'credit');
+        $cogs = $netFor(['COGS_EXPENSE'], 'credit', 'debit');
+        $totalExpenses = $netFor($expenseCodes, 'credit', 'debit');
         $operatingExpenses = $totalExpenses - $cogs;
 
         return [

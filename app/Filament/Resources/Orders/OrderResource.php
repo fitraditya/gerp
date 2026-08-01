@@ -4,10 +4,16 @@ namespace App\Filament\Resources\Orders;
 
 use App\Filament\Resources\Orders\Pages\ManageOrders;
 use App\Models\Order;
+use App\Models\Product;
+use App\Services\SalesReturnService;
 use BackedEnum;
+use Filament\Actions\Action;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -89,8 +95,55 @@ class OrderResource extends Resource
             ])
             ->recordActions([
                 ViewAction::make(),
+                self::processReturnAction(),
             ])
             ->toolbarActions([]);
+    }
+
+    /**
+     * Return (Phase 4 ERP-gap follow-up) is initiated from the order being returned,
+     * same shape as InventoryResource's receiveStock/PurchaseOrderResource's receive —
+     * a record action whose schema closure reads the bound $record's own line items.
+     */
+    private static function processReturnAction(): Action
+    {
+        return Action::make('processReturn')
+            ->label('Process Return')
+            ->visible(fn (Order $record) => auth()->user()?->hasAnyRole(['Admin', 'Manager', 'Supervisor'])
+                && $record->status === 'completed')
+            ->schema([
+                Textarea::make('reason')->required()->minLength(5)->columnSpanFull(),
+                Select::make('refund_method')
+                    ->label('Refund Via')
+                    ->helperText('Defaults to the order\'s original payment method if left blank.')
+                    ->options(['cash' => 'Cash', 'qris' => 'QRIS']),
+                Repeater::make('items')
+                    ->schema([
+                        Select::make('product_id')
+                            ->label('Product')
+                            ->options(fn (Order $record) => collect($record->items)
+                                ->mapWithKeys(fn ($line) => [$line['product_id'] => Product::find($line['product_id'])?->name.' ('.$line['quantity'].' sold)']))
+                            ->required(),
+                        TextInput::make('quantity')->numeric()->minValue(1)->required(),
+                    ])
+                    ->columns(2)
+                    ->minItems(1)
+                    ->required(),
+            ])
+            ->action(function (Order $record, array $data) {
+                try {
+                    app(SalesReturnService::class)->process(
+                        $record->id,
+                        $data['items'],
+                        $data['reason'],
+                        auth()->id(),
+                        $data['refund_method'] ?? null,
+                    );
+                    Notification::make()->title('Return processed')->success()->send();
+                } catch (\RuntimeException $e) {
+                    Notification::make()->title($e->getMessage())->danger()->send();
+                }
+            });
     }
 
     public static function getPages(): array

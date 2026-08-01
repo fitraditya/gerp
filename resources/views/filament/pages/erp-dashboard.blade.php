@@ -29,6 +29,7 @@
     <div style="{{ $tileGrid }}">
         {!! $tile('#166534', '#ffffff', $t('total_sales'), $fmt($s['total_sales_gross']), $t('total_sales_sub')) !!}
         {!! $tile('#92400e', '#ffffff', $t('total_diskon'), $fmt($s['total_diskon']), $t('total_diskon_sub')) !!}
+        {!! $tile('#991b1b', '#ffffff', $t('total_returns'), $fmt($s['total_returns']), $t('total_returns_sub')) !!}
         {!! $tile('#059669', '#ffffff', $t('total_omzet'), $fmt($s['total_omzet_net']), $t('total_omzet_sub')) !!}
         {!! $tile('#a16207', '#ffffff', $t('biaya_pengembangan'), $fmt($s['biaya_pengembangan']), $t('biaya_pengembangan_sub')) !!}
     </div>

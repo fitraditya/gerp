@@ -6,8 +6,10 @@ use App\Models\Expense;
 use App\Models\InventoryAudit;
 use App\Models\InventoryTransfer;
 use App\Models\Product;
+use App\Models\Order;
 use App\Models\PurchaseOrder;
 use App\Models\Remittance;
+use App\Models\SalesReturn;
 use App\Models\Supplier;
 use App\Models\Warehouse;
 use App\Scopes\WarehouseScope;
@@ -197,5 +199,83 @@ class PolicyMatrixTest extends TestCase
         $this->assertFalse($supervisor->can('create', PurchaseOrder::class));
         $this->assertFalse($staff->can('create', PurchaseOrder::class));
         $this->assertFalse($supervisor->can('viewAny', PurchaseOrder::class));
+    }
+
+    private function makeOrder(Warehouse $warehouse): Order
+    {
+        return Order::withoutGlobalScope(WarehouseScope::class)->create([
+            'order_number' => 'ORD-TEST-'.uniqid(),
+            'warehouse_id' => $warehouse->id,
+            'cashier_id' => $this->makeUser('Admin')->id,
+            'subtotal' => 10000,
+            'total' => 10000,
+            'payment_method' => 'cash',
+            'status' => 'completed',
+            'completed_at' => now(),
+        ]);
+    }
+
+    public function test_supervisor_can_create_and_view_sales_return_in_own_warehouse(): void
+    {
+        // Same role set as Stock Opname (Story 3), not POS Checkout — see SalesReturnPolicy docblock.
+        $warehouse = Warehouse::factory()->create();
+        $order = $this->makeOrder($warehouse);
+        $return = SalesReturn::withoutGlobalScope(WarehouseScope::class)->create([
+            'return_number' => 'RET-TEST-1',
+            'order_id' => $order->id,
+            'warehouse_id' => $warehouse->id,
+            'created_by' => $this->makeUser('Admin')->id,
+            'reason' => 'Test reason long enough',
+            'items' => [],
+            'refund_amount' => 0,
+            'status' => 'completed',
+        ]);
+
+        $supervisor = $this->makeUser('Supervisor', $warehouse->id);
+
+        $this->assertTrue($supervisor->can('create', SalesReturn::class));
+        $this->assertTrue($supervisor->can('view', $return));
+    }
+
+    public function test_staff_is_blocked_from_sales_returns(): void
+    {
+        $warehouse = Warehouse::factory()->create();
+        $order = $this->makeOrder($warehouse);
+        $return = SalesReturn::withoutGlobalScope(WarehouseScope::class)->create([
+            'return_number' => 'RET-TEST-2',
+            'order_id' => $order->id,
+            'warehouse_id' => $warehouse->id,
+            'created_by' => $this->makeUser('Admin')->id,
+            'reason' => 'Test reason long enough',
+            'items' => [],
+            'refund_amount' => 0,
+            'status' => 'completed',
+        ]);
+
+        $staff = $this->makeUser('Staff', $warehouse->id);
+
+        $this->assertFalse($staff->can('create', SalesReturn::class));
+        $this->assertFalse($staff->can('view', $return));
+    }
+
+    public function test_supervisor_cannot_view_sales_return_from_another_warehouse(): void
+    {
+        $ownWarehouse = Warehouse::factory()->create();
+        $otherWarehouse = Warehouse::factory()->create();
+        $order = $this->makeOrder($otherWarehouse);
+        $return = SalesReturn::withoutGlobalScope(WarehouseScope::class)->create([
+            'return_number' => 'RET-TEST-3',
+            'order_id' => $order->id,
+            'warehouse_id' => $otherWarehouse->id,
+            'created_by' => $this->makeUser('Admin')->id,
+            'reason' => 'Test reason long enough',
+            'items' => [],
+            'refund_amount' => 0,
+            'status' => 'completed',
+        ]);
+
+        $supervisor = $this->makeUser('Supervisor', $ownWarehouse->id);
+
+        $this->assertFalse($supervisor->can('view', $return));
     }
 }

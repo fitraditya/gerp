@@ -24,6 +24,8 @@ return [
         'total_sales_sub' => '(Gross)',
         'total_diskon' => 'Total Discount',
         'total_diskon_sub' => 'Discount / Partner Promo',
+        'total_returns' => 'Total Returns',
+        'total_returns_sub' => 'Refunded to Customers',
         'total_omzet' => 'Net Revenue',
         'total_omzet_sub' => 'Net Sales',
         'biaya_pengembangan' => 'Development Cost',

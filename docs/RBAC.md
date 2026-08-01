@@ -35,6 +35,7 @@ Order::all(); // Returns only orders from their warehouse
 - `InventoryAudit`
 - `Ledger`
 - `PurchaseOrder`
+- `SalesReturn` (role set matches Stock Opname/`InventoryAudit` — Manager/Supervisor, Staff blocked; Staff has no Filament resource access to reach the "Process Return" action anyway)
 
 **`Remittance` is the exception** — its table has `from_warehouse_id`/`to_warehouse_id`, not a single `warehouse_id` column, so the generic scope's `where('warehouse_id', ...)` fatals for non-Admin users. Row visibility for Remittance is instead enforced by `RemittancePolicy` + `RemittanceResource::getEloquentQuery()` (filters `from_warehouse_id OR to_warehouse_id = user->warehouse_id`). Apply the same pattern to any future model that doesn't own a single `warehouse_id` (e.g. `InventoryTransfer`, gated by `InventoryTransferPolicy` the same way).
 

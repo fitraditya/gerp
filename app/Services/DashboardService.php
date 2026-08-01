@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\CashAccount;
 use App\Models\Expense;
 use App\Models\Order;
+use App\Models\SalesReturn;
 use App\Scopes\WarehouseScope;
 
 class DashboardService
@@ -28,9 +29,22 @@ class DashboardService
 
         $totalSalesGross = (float) (clone $orderBase)->sum('subtotal');
         $totalDiskon = (float) (clone $orderBase)->sum('discount_amount');
-        $totalOmzetNet = $totalSalesGross - $totalDiskon;
         $totalCogs = (float) (clone $orderBase)->sum('cogs_total');
-        $totalGrossProfit = (float) (clone $orderBase)->sum('gross_profit');
+        $totalGrossProfitBeforeReturns = (float) (clone $orderBase)->sum('gross_profit');
+
+        // Returns (Phase 4): a return processed within the period reverses part of a
+        // sale — deduct it from net sales/COGS/gross-profit here rather than mutating
+        // the original completed Order (which stays an immutable sales record).
+        $returnBase = SalesReturn::withoutGlobalScope(WarehouseScope::class)
+            ->whereBetween('processed_at', [$periodStart, $periodEnd])
+            ->when($warehouseId, fn ($q) => $q->where('warehouse_id', $warehouseId));
+
+        $totalReturns = (float) (clone $returnBase)->sum('refund_amount');
+        $totalCogsReversal = (float) (clone $returnBase)->sum('cogs_reversal');
+
+        $totalOmzetNet = $totalSalesGross - $totalDiskon - $totalReturns;
+        $totalCogs -= $totalCogsReversal;
+        $totalGrossProfit = $totalGrossProfitBeforeReturns - ($totalReturns - $totalCogsReversal);
         $grossMarginPct = $totalOmzetNet > 0 ? ($totalGrossProfit / $totalOmzetNet) * 100 : 0.0;
 
         $expenseBase = fn (?string $fundPool = null) => Expense::withoutGlobalScope(WarehouseScope::class)
@@ -61,6 +75,7 @@ class DashboardService
             'stock_akhir_value_cost' => $stock['value_akhir_cost'],
             'total_sales_gross' => $totalSalesGross,
             'total_diskon' => $totalDiskon,
+            'total_returns' => $totalReturns,
             'total_omzet_net' => $totalOmzetNet,
             'total_cogs' => $totalCogs,
             'total_gross_profit' => $totalGrossProfit,

@@ -14,6 +14,7 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\Remittance;
+use App\Models\SalesReturn;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -29,6 +30,7 @@ use App\Policies\OrderPolicy;
 use App\Policies\ProductPolicy;
 use App\Policies\PurchaseOrderPolicy;
 use App\Policies\RemittancePolicy;
+use App\Policies\SalesReturnPolicy;
 use App\Policies\SupplierPolicy;
 use App\Policies\UserPolicy;
 use App\Policies\WarehousePolicy;
@@ -57,6 +59,7 @@ class AuthServiceProvider extends ServiceProvider
         Order::class => OrderPolicy::class,
         Supplier::class => SupplierPolicy::class,
         PurchaseOrder::class => PurchaseOrderPolicy::class,
+        SalesReturn::class => SalesReturnPolicy::class,
     ];
 
     /**
