@@ -12,7 +12,7 @@ class BranchFactory extends Factory
         return [
             'code' => strtoupper(fake()->unique()->lexify('BR???')),
             'name' => fake()->company().' Gerai',
-            'jenis' => 'masjid',
+            'type' => 'masjid',
             'pic_name' => fake()->firstName(),
             'warehouse_id' => Warehouse::factory(),
             'address' => fake()->address(),

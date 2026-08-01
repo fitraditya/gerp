@@ -51,8 +51,8 @@ class ProfitReportingTest extends TestCase
 
         $stock = app(InventoryReportService::class)->stockSummary($this->warehouse->id, now()->subDay());
 
-        $this->assertEquals(100000, $stock['value_akhir']); // 10 * retail price 10000
-        $this->assertEquals(40000, $stock['value_akhir_cost']); // 10 * cost 4000
+        $this->assertEquals(100000, $stock['value_closing']); // 10 * retail price 10000
+        $this->assertEquals(40000, $stock['value_closing_cost']); // 10 * cost 4000
     }
 
     public function test_stock_summary_treats_null_cost_price_as_zero(): void
@@ -63,8 +63,8 @@ class ProfitReportingTest extends TestCase
 
         $stock = app(InventoryReportService::class)->stockSummary($this->warehouse->id, now()->subDay());
 
-        $this->assertEquals(0, $stock['value_akhir_cost']);
-        $this->assertEquals(20000, $stock['value_akhir']);
+        $this->assertEquals(0, $stock['value_closing_cost']);
+        $this->assertEquals(20000, $stock['value_closing']);
     }
 
     public function test_dashboard_summary_reports_cogs_gross_profit_and_margin(): void

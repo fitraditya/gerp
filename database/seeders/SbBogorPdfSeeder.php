@@ -66,21 +66,21 @@ class SbBogorPdfSeeder extends Seeder
         // SDM, and operasional). The bazzar rows are event-based partner channels,
         // seeded dormant (is_active = false) until an event activates them. ---
         $geraiData = [
-            'MDIA1' => ['jenis' => 'masjid', 'name' => 'Gerai Masjid Al-Mahdi 1', 'pic' => 'Fadhil', 'lokasi' => 'Masjid Al-Mahdi', 'aktif' => true],
-            'MDIA2' => ['jenis' => 'masjid', 'name' => 'Gerai Masjid Al-Mahdi 2', 'pic' => 'Rustam', 'lokasi' => 'Masjid Al-Mahdi', 'aktif' => true],
-            'SSYA' => ['jenis' => 'bazzar', 'name' => 'Sasya Preloved', 'pic' => 'Bu Nia', 'lokasi' => 'Sasya Preloved', 'aktif' => false],
-            'AISY' => ['jenis' => 'bazzar', 'name' => 'Hafshah Preloved', 'pic' => 'Sisil', 'lokasi' => 'Hafshah Preloved', 'aktif' => false],
+            'MDIA1' => ['type' => 'masjid', 'name' => 'Gerai Masjid Al-Mahdi 1', 'pic' => 'Fadhil', 'address' => 'Masjid Al-Mahdi', 'active' => true],
+            'MDIA2' => ['type' => 'masjid', 'name' => 'Gerai Masjid Al-Mahdi 2', 'pic' => 'Rustam', 'address' => 'Masjid Al-Mahdi', 'active' => true],
+            'SSYA' => ['type' => 'bazzar', 'name' => 'Sasya Preloved', 'pic' => 'Bu Nia', 'address' => 'Sasya Preloved', 'active' => false],
+            'AISY' => ['type' => 'bazzar', 'name' => 'Hafshah Preloved', 'pic' => 'Sisil', 'address' => 'Hafshah Preloved', 'active' => false],
         ];
 
         $branches = [];
         foreach ($geraiData as $code => $g) {
             $wh = Warehouse::firstOrCreate(
                 ['code' => $code],
-                ['name' => "{$g['name']} Warehouse", 'type' => 'branch', 'address' => $g['lokasi'], 'is_active' => $g['aktif']]
+                ['name' => "{$g['name']} Warehouse", 'type' => 'branch', 'address' => $g['address'], 'is_active' => $g['active']]
             );
             $branches[$code] = Branch::firstOrCreate(
                 ['code' => $code],
-                ['name' => $g['name'], 'jenis' => $g['jenis'], 'pic_name' => $g['pic'], 'warehouse_id' => $wh->id, 'address' => $g['lokasi'], 'is_active' => $g['aktif']]
+                ['name' => $g['name'], 'type' => $g['type'], 'pic_name' => $g['pic'], 'warehouse_id' => $wh->id, 'address' => $g['address'], 'is_active' => $g['active']]
             );
 
             // Every gerai gets its own operating drawer so Expense/Checkout can post to it.

@@ -59,9 +59,9 @@ class BranchResource extends Resource
             ->components([
                 TextInput::make('code')->label(__('branches.fields.code'))->required()->unique(ignoreRecord: true)->maxLength(255),
                 TextInput::make('name')->label(__('branches.fields.name'))->required()->maxLength(255),
-                Select::make('jenis')
-                    ->label(__('branches.fields.jenis'))
-                    ->options(['masjid' => __('branches.fields.jenis_masjid'), 'bazzar' => __('branches.fields.jenis_bazzar')])
+                Select::make('type')
+                    ->label(__('branches.fields.type'))
+                    ->options(['masjid' => __('branches.fields.type_masjid'), 'bazzar' => __('branches.fields.type_bazzar')])
                     ->required(),
                 TextInput::make('pic_name')->label(__('branches.fields.pic_name'))->maxLength(255),
                 Select::make('warehouse_id')->label(__('branches.fields.warehouse'))->relationship('warehouse', 'name')->required()->searchable()->preload(),
@@ -77,7 +77,7 @@ class BranchResource extends Resource
             ->columns([
                 TextColumn::make('code')->label(__('branches.fields.code'))->searchable()->sortable(),
                 TextColumn::make('name')->label(__('branches.fields.name'))->searchable()->sortable(),
-                TextColumn::make('jenis')->label(__('branches.fields.jenis'))->badge(),
+                TextColumn::make('type')->label(__('branches.fields.type'))->badge(),
                 TextColumn::make('pic_name')->label(__('branches.fields.pic_name')),
                 TextColumn::make('warehouse.name')->label(__('branches.fields.warehouse'))->sortable(),
                 TextColumn::make('phone')->label(__('branches.fields.phone')),

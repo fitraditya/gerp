@@ -10,7 +10,7 @@ class Branch extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $fillable = ['code', 'name', 'jenis', 'pic_name', 'warehouse_id', 'address', 'phone', 'is_active'];
+    protected $fillable = ['code', 'name', 'type', 'pic_name', 'warehouse_id', 'address', 'phone', 'is_active'];
 
     protected function casts(): array
     {

@@ -50,12 +50,12 @@ class InventoryReportService
         $prices = Product::pluck('price', 'id');
         $costs = Product::pluck('cost_price', 'id');
 
-        $qtyAwal = 0;
-        $qtyAkhir = 0;
-        $valueAwal = 0.0;
-        $valueAkhir = 0.0;
-        $valueAwalCost = 0.0;
-        $valueAkhirCost = 0.0;
+        $qtyOpening = 0;
+        $qtyClosing = 0;
+        $valueOpening = 0.0;
+        $valueClosing = 0.0;
+        $valueOpeningCost = 0.0;
+        $valueClosingCost = 0.0;
 
         foreach ($currentByProduct as $productId => $qtyNow) {
             $delta = (int) ($movedSincePeriodStart[$productId] ?? 0);
@@ -63,21 +63,21 @@ class InventoryReportService
             $price = (float) ($prices[$productId] ?? 0);
             $cost = (float) ($costs[$productId] ?? 0);
 
-            $qtyAwal += $qtyStart;
-            $qtyAkhir += $qtyNow;
-            $valueAwal += $qtyStart * $price;
-            $valueAkhir += $qtyNow * $price;
-            $valueAwalCost += $qtyStart * $cost;
-            $valueAkhirCost += $qtyNow * $cost;
+            $qtyOpening += $qtyStart;
+            $qtyClosing += $qtyNow;
+            $valueOpening += $qtyStart * $price;
+            $valueClosing += $qtyNow * $price;
+            $valueOpeningCost += $qtyStart * $cost;
+            $valueClosingCost += $qtyNow * $cost;
         }
 
         return [
-            'qty_awal' => $qtyAwal,
-            'qty_akhir' => $qtyAkhir,
-            'value_awal' => $valueAwal,
-            'value_akhir' => $valueAkhir,
-            'value_awal_cost' => $valueAwalCost,
-            'value_akhir_cost' => $valueAkhirCost,
+            'qty_opening' => $qtyOpening,
+            'qty_closing' => $qtyClosing,
+            'value_opening' => $valueOpening,
+            'value_closing' => $valueClosing,
+            'value_opening_cost' => $valueOpeningCost,
+            'value_closing_cost' => $valueClosingCost,
         ];
     }
 }

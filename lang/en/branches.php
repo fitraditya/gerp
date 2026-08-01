@@ -8,9 +8,9 @@ return [
     'fields' => [
         'code' => 'Code',
         'name' => 'Name',
-        'jenis' => 'Type',
-        'jenis_masjid' => 'Masjid',
-        'jenis_bazzar' => 'Bazzar',
+        'type' => 'Type',
+        'type_masjid' => 'Masjid',
+        'type_bazzar' => 'Bazzar',
         'pic_name' => 'PIC',
         'warehouse' => 'Warehouse',
         'phone' => 'Phone',
